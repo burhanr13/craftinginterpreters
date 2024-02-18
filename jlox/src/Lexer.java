@@ -60,7 +60,11 @@ public class Lexer {
         if (c == '\n') {
             line++;
         } else if (Character.isDigit(c)) {
-            while (cur < input.length() && Character.isDigit(input.charAt(cur))) {
+            boolean saw_dot = false;
+            while (cur < input.length() &&
+                    (Character.isDigit(input.charAt(cur)) || input.charAt(cur) == '.' && !saw_dot)) {
+                if (input.charAt(cur) == '.')
+                    saw_dot = true;
                 cur++;
             }
             addToken(Token.Type.NUMBER, Double.parseDouble(input.substring(start, cur)));

@@ -101,10 +101,10 @@ public class Parser {
 
     void parseError(String message) {
         if (!error) {
+            back();
             Lox.error(top().line(), message);
             error = true;
         }
-        back();
     }
 
     Token next() {
@@ -363,7 +363,10 @@ public class Parser {
     }
 
     Stmt parseExprStmt() {
-        Stmt s = new Stmt.ExprStmt(parseExpr());
+        Expr e = parseExpr();
+        if (e == null)
+            return null;
+        Stmt s = new Stmt.ExprStmt(e);
         if (next().type() != Token.Type.SEMICOLON) {
             parseError("Expected semicolon.");
             return null;
