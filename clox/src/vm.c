@@ -61,6 +61,22 @@ int run() {
 }
 
 int interpret(char* source) {
-    compile(source);
-    return OK;
+    Chunk chunk;
+    chunk_init(&chunk);
+
+    int res = OK;
+
+    if (!compile(source,&chunk)) {
+        res = COMPILE_ERROR;
+        goto interpret_end;
+    }
+
+    vm.chunk = &chunk;
+    vm.pc = chunk.code;
+
+    res = run();
+
+interpret_end:
+    chunk_clear(&chunk);
+    return res;
 }

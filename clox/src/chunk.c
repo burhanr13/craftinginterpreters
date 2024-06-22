@@ -2,29 +2,34 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void chunk_init(Chunk* c) {
-    c->code = NULL;
-    c->size = 0;
-    c->cap = 0;
-    c->constants = NULL;
-    c->n_constants = 0;
-    c->cap_constants = 0;
+    memset(c, 0, sizeof *c);
+
+    Vec_push(c->lines, -1);
 }
 
 void chunk_clear(Chunk* c) {
-    free(c->code);
-    free(c->constants);
+    free(c->code.d);
+    free(c->constants.d);
     chunk_init(c);
 }
 
 void chunk_write(Chunk* c, u8 b, int line) {
-    if (c->size == c->cap) {
-        c->cap = c->cap ? 2 * c->cap : 8;
-        c->code = realloc(c->code, c->cap);
+    Vec_push(c->code, b);
+    if (line > c->lines.size - 1) {
+        int last_instr = c->lines.d[c->lines.size - 1];
+        int n = line - c->lines.size;
+        for (int i = 0; i < n; i++) {
+            Vec_push(c->lines, last_instr);
+        }
+        Vec_push(c->lines, c->code.size - 1);
     }
-    c->code[c->size++] = b;
-    c->last_line = line;
+}
+
+void chunk_get_instr_line(Chunk* c, void* pc) {
+    bsearch()
 }
 
 void chunk_load_const(Chunk* c, Value v, int line) {
@@ -33,12 +38,8 @@ void chunk_load_const(Chunk* c, Value v, int line) {
 }
 
 int add_constant(Chunk* c, Value v) {
-    if (c->n_constants == c->cap_constants) {
-        c->cap_constants = c->cap_constants ? 2 * c->cap_constants : 8;
-        c->constants = realloc(c->constants, c->cap_constants * sizeof(Value));
-    }
-    c->constants[c->n_constants++] = v;
-    return c->n_constants - 1;
+    Vec_push(c->constants, v);
+    return c->constants.size - 1;
 }
 
 int disassemble_instr(Chunk* c, int off) {
@@ -46,7 +47,7 @@ int disassemble_instr(Chunk* c, int off) {
         case OP_LOAD_CONST:
             printf("load ");
             int const_ind = c->code[off++];
-            print_value(c->constants[const_ind]);
+            print_value(c->constants.d[const_ind]);
             break;
         case OP_NEG:
             printf("neg");

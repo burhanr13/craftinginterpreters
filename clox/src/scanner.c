@@ -1,5 +1,6 @@
 #include "scanner.h"
 
+#include <ctype.h>
 #include <string.h>
 
 #include "types.h"
@@ -32,33 +33,81 @@ Token error_token(char* message) {
     return t;
 }
 
+#define __KWD(kw, type)                                            \
+    return strncmp(p, kw, sizeof kw - 1) ? TOKEN_IDENTIFIER : type
+
+TokenType identifierType() {
+    char* p = scanner.start;
+    switch (*p++) {
+        case 'a':
+            __KWD("nd", TOKEN_AND);
+        case 'c':
+            __KWD("lass", TOKEN_CLASS);
+        case 'e':
+            __KWD("lse", TOKEN_ELSE);
+        case 'f':
+            switch(*p++){
+                case 'a':
+                    __KWD("lse", TOKEN_FALSE);
+                case 'o':
+                    __KWD("r", TOKEN_FOR);
+                case 'u':
+                    __KWD("n", TOKEN_FUN);
+            }
+        case 'i':
+            __KWD("f", TOKEN_IF);
+        case 'n':
+            __KWD("il", TOKEN_NIL);
+        case 'o':
+            __KWD("r", TOKEN_OR);
+        case 'p':
+            __KWD("rint", TOKEN_PRINT);
+        case 'r':
+            __KWD("eturn", TOKEN_RETURN);
+        case 's':
+            __KWD("uper", TOKEN_SUPER);
+        case 't':
+            switch(*p++){
+                case 'h':
+                    __KWD("is", TOKEN_THIS);
+                case 'r':
+                    __KWD("ue", TOKEN_TRUE);
+            }
+        case 'v':
+            __KWD("ar", TOKEN_VAR);
+        case 'w':
+            __KWD("hile", TOKEN_WHILE);
+        default:
+            return TOKEN_IDENTIFIER;
+    }
+}
+
+
 Token next_token() {
     scanner.start = scanner.cur;
 
     char c = *scanner.cur++;
 
-    if ('0' <= c && c <= '9') {
+    if (isdigit(c)) {
         bool saw_dot = false;
-        while (('0' <= *scanner.cur && *scanner.cur <= '9') ||
-               (!saw_dot && *scanner.cur == '.')) {
+        while (isdigit(*scanner.cur) || (!saw_dot && *scanner.cur == '.')) {
             if (*scanner.cur == '.') saw_dot = true;
             scanner.cur++;
         }
         return make_token(TOKEN_NUMBER);
     }
 
-    if ('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_') {
-        while ('0' <= *scanner.cur && *scanner.cur <= '9' ||
-               'a' <= *scanner.cur && *scanner.cur <= 'z' ||
-               'A' <= *scanner.cur && *scanner.cur <= 'Z' ||
-               *scanner.cur == '_') {
+    if (isalpha(c) || c == '_') {
+        while (isalnum(*scanner.cur) || *scanner.cur == '_') {
             scanner.cur++;
         }
-        return make_token(TOKEN_IDENTIFIER);
+
+        return make_token(identifierType());
     }
 
     switch (c) {
         case '\0':
+            scanner.cur--;
             return make_token(TOKEN_EOF);
         case '\n':
             scanner.line++;
@@ -111,14 +160,25 @@ Token next_token() {
             scanner.cur--;
             return make_token(TOKEN_GREATER);
         case '/':
-            if (*scanner.cur++ == '/') {
-                while (*scanner.cur != '\n' && *scanner.cur != '\0') {
-                    scanner.cur++;
-                }
-                return next_token();
+            switch (*scanner.cur++) {
+                case '/':
+                    while (*scanner.cur && *scanner.cur != '\n') {
+                        scanner.cur++;
+                    }
+                    return next_token();
+                case '*':
+                    while (*scanner.cur) {
+                        if (*scanner.cur == '*' && scanner.cur[1] == '/') {
+                            scanner.cur += 2;
+                            return next_token();
+                        } else if (*scanner.cur == '\n') scanner.line++;
+                        scanner.cur++;
+                    }
+                    return error_token("Unterminated block comment.");
+                default:
+                    scanner.cur--;
+                    return make_token(TOKEN_SLASH);
             }
-            scanner.cur--;
-            return make_token(TOKEN_SLASH);
         case '"':
             while (*scanner.cur != '"') {
                 if (*scanner.cur == '\n' || *scanner.cur == '\0')

@@ -3,9 +3,9 @@
 
 #include "chunk.h"
 
-#define OK 0
-
 #define STACK_SIZE 256
+
+enum { OK, COMPILE_ERROR };
 
 typedef struct {
     Chunk* chunk;

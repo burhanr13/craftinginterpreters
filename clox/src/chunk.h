@@ -15,15 +15,12 @@ enum {
 };
 
 typedef struct {
-    u8* code;
-    int size;
-    int cap;
+    Vector(u8) code;
 
-    Value* constants;
-    int n_constants;
-    int cap_constants;
+    Vector(Value) constants;
 
-    int last_line;
+    Vector(int) lines;
+
 } Chunk;
 
 void chunk_init(Chunk* c);
