@@ -2,16 +2,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "chunk.h"
 #include "vm.h"
 
 void repl() {
-    char buf[1000];
+    using_history();
+    char* buf;
     printf("CLox\n");
     while (true) {
-        printf("clox> ");
-        if (!fgets(buf, 1000, stdin)) break;
+#ifdef USE_READLINE
+        buf = readline("clox> ");
+        if (!buf) break;
+        add_history(buf);
         interpret(buf);
+        free(buf);
+#else
+        buf = malloc(1000);
+        printf("clox> ");
+        if (!fgets(buf, 1000, stdin)) {
+            free(buf);
+            break;
+        }
+        interpret(buf);
+        free(buf);
+#endif
     }
 }
 

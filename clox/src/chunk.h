@@ -5,13 +5,22 @@
 #include "value.h"
 
 enum {
-    OP_LOAD_CONST,
+    OP_PUSH_CONST,
+    OP_PUSH_NIL,
+    OP_PUSH_TRUE,
+    OP_PUSH_FALSE,
     OP_NEG,
     OP_ADD,
     OP_SUB,
     OP_MUL,
     OP_DIV,
-    OP_RET
+    OP_NOT,
+    OP_EQ,
+    OP_GT,
+    OP_LT,
+    OP_PRINT,
+    OP_POP,
+    OP_RET,
 };
 
 typedef struct {
@@ -24,10 +33,12 @@ typedef struct {
 } Chunk;
 
 void chunk_init(Chunk* c);
-void chunk_clear(Chunk* c);
+void chunk_free(Chunk* c);
 void chunk_write(Chunk* c, u8 b, int line);
 
-void chunk_load_const(Chunk* c, Value v, int line);
+int chunk_get_instr_line(Chunk* c, u8* pc);
+
+void chunk_push_const(Chunk* c, Value v, int line);
 int add_constant(Chunk* c, Value v);
 
 int disassemble_instr(Chunk* c, int off);

@@ -54,6 +54,7 @@ TokenType identifierType() {
                 case 'u':
                     __KWD("n", TOKEN_FUN);
             }
+            break;
         case 'i':
             __KWD("f", TOKEN_IF);
         case 'n':
@@ -73,13 +74,13 @@ TokenType identifierType() {
                 case 'r':
                     __KWD("ue", TOKEN_TRUE);
             }
+            break;
         case 'v':
             __KWD("ar", TOKEN_VAR);
         case 'w':
             __KWD("hile", TOKEN_WHILE);
-        default:
-            return TOKEN_IDENTIFIER;
     }
+    return TOKEN_IDENTIFIER;
 }
 
 

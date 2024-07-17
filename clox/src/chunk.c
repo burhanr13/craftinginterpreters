@@ -10,16 +10,16 @@ void chunk_init(Chunk* c) {
     Vec_push(c->lines, -1);
 }
 
-void chunk_clear(Chunk* c) {
+void chunk_free(Chunk* c) {
     free(c->code.d);
     free(c->constants.d);
-    chunk_init(c);
+    free(c->lines.d);
 }
 
 void chunk_write(Chunk* c, u8 b, int line) {
     Vec_push(c->code, b);
     if (line > c->lines.size - 1) {
-        int last_instr = c->lines.d[c->lines.size - 1];
+        int last_instr = c->lines.size == 0 ? 0 : c->lines.d[c->lines.size - 1];
         int n = line - c->lines.size;
         for (int i = 0; i < n; i++) {
             Vec_push(c->lines, last_instr);
@@ -28,12 +28,20 @@ void chunk_write(Chunk* c, u8 b, int line) {
     }
 }
 
-void chunk_get_instr_line(Chunk* c, void* pc) {
-    bsearch()
+int chunk_get_instr_line(Chunk* c, u8* pc) {
+    int off = pc - c->code.d;
+    for (int i = 0; i < c->lines.size; i++) {
+        if (c->lines.d[i] > off && i > 0) {
+            int line = i - 1;
+            if (line < 1) line = 1;
+            return line;
+        }
+    }
+    return 1;
 }
 
-void chunk_load_const(Chunk* c, Value v, int line) {
-    chunk_write(c, OP_LOAD_CONST, line);
+void chunk_push_const(Chunk* c, Value v, int line) {
+    chunk_write(c, OP_PUSH_CONST, line);
     chunk_write(c, add_constant(c, v), line);
 }
 
@@ -43,11 +51,20 @@ int add_constant(Chunk* c, Value v) {
 }
 
 int disassemble_instr(Chunk* c, int off) {
-    switch (c->code[off++]) {
-        case OP_LOAD_CONST:
-            printf("load ");
-            int const_ind = c->code[off++];
+    switch (c->code.d[off++]) {
+        case OP_PUSH_CONST:
+            printf("push ");
+            int const_ind = c->code.d[off++];
             print_value(c->constants.d[const_ind]);
+            break;
+        case OP_PUSH_NIL:
+            printf("push nil");
+            break;
+        case OP_PUSH_TRUE:
+            printf("push true");
+            break;
+        case OP_PUSH_FALSE:
+            printf("push false");
             break;
         case OP_NEG:
             printf("neg");
@@ -64,6 +81,24 @@ int disassemble_instr(Chunk* c, int off) {
         case OP_DIV:
             printf("div");
             break;
+        case OP_NOT:
+            printf("not");
+            break;
+        case OP_EQ:
+            printf("eq");
+            break;
+        case OP_GT:
+            printf("gt");
+            break;
+        case OP_LT:
+            printf("lt");
+            break;
+        case OP_PRINT:
+            printf("print");
+            break;
+        case OP_POP:
+            printf("pop");
+            break;
         case OP_RET:
             printf("ret");
             break;
@@ -77,7 +112,7 @@ int disassemble_instr(Chunk* c, int off) {
 void disassemble_chunk(Chunk* c) {
     printf("==== Chunk ====\n");
     int off = 0;
-    while (off < c->size) {
+    while (off < c->code.size) {
         printf("%03x: ", off);
         off = disassemble_instr(c, off);
         printf("\n");
