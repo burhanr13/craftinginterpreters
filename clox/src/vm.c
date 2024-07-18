@@ -1,7 +1,10 @@
 #include "vm.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <math.h>
 
 #include "chunk.h"
 #include "compiler.h"
@@ -12,20 +15,28 @@ void VM_init() {
     vm.sp = vm.stack;
 
     table_init(&vm.strings);
+    table_init(&vm.globals);
 }
 
 void VM_free() {
     free_all_obj();
     table_free(&vm.strings);
+    table_free(&vm.globals);
 }
 
-void runtime_error(char* message) {
-    printf("Error at line %d: %s\n", chunk_get_instr_line(vm.chunk, vm.pc),
-           message);
+void runtime_error(char* message, ...) {
+    printf("Error at line %d: ", chunk_get_instr_line(vm.chunk, vm.pc));
+    va_list l;
+    va_start(l, message);
+    vprintf(message, l);
+    va_end(l);
+    printf("\n");
 }
 
 #define PUSH(a) *vm.sp++ = a
 #define POP(a) a = *--vm.sp
+
+#define GET_ID(id) (ObjString*) vm.chunk->constants.d[id].obj
 
 #define BINARY(op, res_val)                                                    \
     POP(Value b);                                                              \
@@ -44,6 +55,40 @@ int run() {
     while (true) {
         u8 instr = *vm.pc++;
         switch (instr) {
+            case OP_DEF_GLOBAL: {
+                POP(Value v);
+                ObjString* id = GET_ID(*vm.pc++);
+                table_set(&vm.globals, id, v);
+                break;
+            }
+            case OP_PUSH_GLOBAL: {
+                ObjString* id = GET_ID(*vm.pc++);
+                Value v;
+                if (!table_get(&vm.globals, id, &v)) {
+                    runtime_error("Undefined variable \"%s\".", id->data);
+                    return RUNTIME_ERROR;
+                }
+                PUSH(v);
+                break;
+            }
+            case OP_POP_GLOBAL: {
+                ObjString* id = GET_ID(*vm.pc++);
+                POP(Value v);
+                if (table_set(&vm.globals, id, v)) {
+                    table_delete(&vm.globals, id);
+                    runtime_error("Undefined variable \"%s\".", id->data);
+                    return RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_PUSH_LOCAL: {
+                PUSH(vm.stack[*vm.pc++]);
+                break;
+            }
+            case OP_POP_LOCAL: {
+                POP(vm.stack[*vm.pc++]);
+                break;
+            }
             case OP_PUSH_CONST:
                 PUSH(vm.chunk->constants.d[*vm.pc++]);
                 break;
@@ -55,6 +100,12 @@ int run() {
                 break;
             case OP_PUSH_FALSE:
                 PUSH(BOOL_VAL(false));
+                break;
+            case OP_PUSH:
+                vm.sp++;
+                break;
+            case OP_POP:
+                --vm.sp;
                 break;
             case OP_NEG: {
                 POP(Value a);
@@ -96,6 +147,16 @@ int run() {
                 BINARY(/, NUMBER_VAL);
                 break;
             }
+            case OP_MOD: {
+                POP(Value b);
+                POP(Value a);
+                if (a.type != VT_NUMBER || b.type != VT_NUMBER) {
+                    runtime_error("Operand must be a number.");
+                    return RUNTIME_ERROR;
+                }
+                PUSH(NUMBER_VAL(fmod(a.num, b.num)));
+                break;
+            }
             case OP_EQ: {
                 POP(Value a);
                 POP(Value b);
@@ -116,8 +177,32 @@ int run() {
                 printf("\n");
                 break;
             }
-            case OP_POP: {
-                POP(Value v);
+            case OP_JMP: {
+                int off = *vm.pc++;
+                off |= *vm.pc++ << 8;
+                off = off << 16 >> 16;
+                vm.pc += off;
+                break;
+            }
+            case OP_JMP_TRUE: {
+                int off = *vm.pc++;
+                off |= *vm.pc++ << 8;
+                off = off << 16 >> 16;
+                POP(Value cond);
+                if (truthy(cond)) {
+                    vm.pc += off;
+                }
+                break;
+            }
+            case OP_JMP_FALSE: {
+                int off = *vm.pc++;
+                off |= *vm.pc++ << 8;
+                off = off << 16 >> 16;
+                POP(Value cond);
+                if (!truthy(cond)) {
+                    vm.pc += off;
+                }
+                break;
             }
             case OP_RET:
                 return OK;
@@ -136,7 +221,7 @@ int interpret(char* source) {
         goto interpret_end;
     }
 
-    disassemble_chunk(&chunk);
+    //disassemble_chunk(&chunk);
 
     vm.chunk = &chunk;
     vm.pc = chunk.code.d;

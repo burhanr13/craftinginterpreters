@@ -8,6 +8,8 @@
 #include "chunk.h"
 #include "vm.h"
 
+#define USE_READLINE
+
 void repl() {
     using_history();
     char* buf;

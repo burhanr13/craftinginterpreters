@@ -70,8 +70,11 @@ ObjString* create_string(char* str, int len) {
     HASH_STR(o);
 
     ObjString* intern = table_find_string(&vm.strings, o);
-    if (intern) return intern;
-    else {
+    if (intern) {
+        vm.objs = vm.objs->next;
+        free_obj((Obj*) o);
+        return intern;
+    } else {
         table_set(&vm.strings, o, NIL_VAL);
         return o;
     }
@@ -84,8 +87,11 @@ ObjString* concat_string(ObjString* a, ObjString* b) {
     strcat(c->data, b->data);
     HASH_STR(c);
     ObjString* intern = table_find_string(&vm.strings, c);
-    if (intern) return intern;
-    else {
+    if (intern) {
+        vm.objs = vm.objs->next;
+        free_obj((Obj*) c);
+        return intern;
+    } else {
         table_set(&vm.strings, c, NIL_VAL);
         return c;
     }

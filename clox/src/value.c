@@ -3,7 +3,7 @@
 #include <stdio.h>
 bool value_equal(Value a, Value b) {
     if (a.type != b.type) return false;
-    switch(a.type) {
+    switch (a.type) {
         case VT_NUMBER:
             return a.num == b.num;
         case VT_BOOL:
@@ -18,9 +18,10 @@ bool value_equal(Value a, Value b) {
 }
 
 void print_value(Value v) {
-    switch(v.type) {
+    switch (v.type) {
         case VT_NUMBER:
-            printf("%f", v.num);
+            if (v.num == (int) v.num) printf("%d", (int) v.num);
+            else printf("%f", v.num);
             break;
         case VT_NIL:
             printf("nil");

@@ -17,6 +17,8 @@ typedef struct {
 
     Table strings;
 
+    Table globals;
+
     Value* sp;
     Value stack[STACK_SIZE];
 } VM;

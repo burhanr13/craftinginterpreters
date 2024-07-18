@@ -23,7 +23,7 @@ typedef struct {
 void table_init(Table* t);
 void table_free(Table* t);
 
-void table_set(Table* t, ObjString* key, Value val);
+bool table_set(Table* t, ObjString* key, Value val);
 bool table_get(Table* t, ObjString* key, Value* val);
 bool table_delete(Table* t, ObjString* key);
 

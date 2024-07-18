@@ -52,11 +52,50 @@ int add_constant(Chunk* c, Value v) {
 
 int disassemble_instr(Chunk* c, int off) {
     switch (c->code.d[off++]) {
-        case OP_PUSH_CONST:
+        case OP_NOP:
+            printf("nop");
+            break;
+        case OP_DEF_GLOBAL: {
+            printf("def globals[");
+            int const_ind = c->code.d[off++];
+            printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
+            printf("]");
+            break;
+        }
+        case OP_PUSH_GLOBAL: {
+            printf("push globals[");
+            int const_ind = c->code.d[off++];
+            printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
+            printf("]");
+            break;
+        }
+        case OP_POP_GLOBAL: {
+            printf("pop globals[");
+            int const_ind = c->code.d[off++];
+            printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
+            printf("]");
+            break;
+        }
+        case OP_PUSH_LOCAL: {
+            printf("push locals[");
+            int ind = c->code.d[off++];
+            printf("%d", ind);
+            printf("]");
+            break;
+        }
+        case OP_POP_LOCAL: {
+            printf("pop locals[");
+            int ind = c->code.d[off++];
+            printf("%d", ind);
+            printf("]");
+            break;
+        }
+        case OP_PUSH_CONST: {
             printf("push ");
             int const_ind = c->code.d[off++];
             print_value(c->constants.d[const_ind]);
             break;
+        }
         case OP_PUSH_NIL:
             printf("push nil");
             break;
@@ -65,6 +104,12 @@ int disassemble_instr(Chunk* c, int off) {
             break;
         case OP_PUSH_FALSE:
             printf("push false");
+            break;
+        case OP_PUSH:
+            printf("push");
+            break;
+        case OP_POP:
+            printf("pop");
             break;
         case OP_NEG:
             printf("neg");
@@ -81,6 +126,9 @@ int disassemble_instr(Chunk* c, int off) {
         case OP_DIV:
             printf("div");
             break;
+        case OP_MOD:
+            printf("mod");
+            break;
         case OP_NOT:
             printf("not");
             break;
@@ -96,9 +144,30 @@ int disassemble_instr(Chunk* c, int off) {
         case OP_PRINT:
             printf("print");
             break;
-        case OP_POP:
-            printf("pop");
+        case OP_JMP: {
+            int dst = c->code.d[off++];
+            dst |= c->code.d[off++] << 8;
+            dst = dst << 16 >> 16;
+            dst += off;
+            printf("jmp %04x", dst);
             break;
+        }
+        case OP_JMP_TRUE: {
+            int dst = c->code.d[off++];
+            dst |= c->code.d[off++] << 8;
+            dst = dst << 16 >> 16;
+            dst += off;
+            printf("jmp,true %04x", dst);
+            break;
+        }
+        case OP_JMP_FALSE: {
+            int dst = c->code.d[off++];
+            dst |= c->code.d[off++] << 8;
+            dst = dst << 16 >> 16;
+            dst += off;
+            printf("jmp,false %04x", dst);
+            break;
+        }
         case OP_RET:
             printf("ret");
             break;
@@ -113,7 +182,7 @@ void disassemble_chunk(Chunk* c) {
     printf("==== Chunk ====\n");
     int off = 0;
     while (off < c->code.size) {
-        printf("%03x: ", off);
+        printf("%04x: ", off);
         off = disassemble_instr(c, off);
         printf("\n");
     }

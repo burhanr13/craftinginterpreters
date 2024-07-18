@@ -1,0 +1,351 @@
+
+/*
+fun aaaa() {
+    print 1;
+    var a =49;
+    for(var i=0;i<10;i=i+1) print "aaaaaaaaaa";
+    var p = 0;
+    while(true) {
+        p = p+1;
+        if (p==100) break;
+        if (p<99) continue;
+        print p;
+    }
+    print a;
+    
+    return a;
+}
+print aaaa();
+*/
+
+print "===== Test basics =============";
+
+print "Hello World";
+
+var a = 6;
+print a*6;
+var b = 6000;
+
+// aaaaaaaa
+// comment
+
+print "======= Test Scope ================";
+
+{
+    var a = 5;
+    var c = 2;
+    print a;
+    print c;
+    var d = 888;
+    {
+        var a = 3;
+        print a;
+        print b;
+        var c = 2;
+        print c;
+        print d;
+    }
+    print a;
+    print b;
+    print c;
+    print d;
+}
+print a;
+print b;
+
+var a = 1;
+{
+    var a = 2 + a;
+    print a;
+}
+
+print "============ Test control flow ============";
+
+print "------- Test fizz buzz and string concatenation -----------";
+var s = "";
+var i = 0;
+while (i < 40) {
+    if (i % 3 == 0 and i % 5 == 0) {
+        print "FizzBuzz";
+    } else if (i % 3 == 0) {
+        print "Fizz";
+    } else if (i % 5 == 0) {
+        print "Buzz";
+    } else {
+        print i;
+    }
+    i = i + 1;
+    if (i % 2 == 0) {
+        s = s + "/";
+    }
+    if (i % 2 == 1) {
+        s = s + "\";
+    }
+}
+
+print s;
+
+print "------------ Test loops and math ----------------";
+for (var i = 0; i < 50; i = i + 1) { // another comment
+    print i;
+    if (i * 2 >= 54) {
+        print (5*i/2);
+    }
+}
+
+print "--------- Test loops without body ------------";
+
+var d=0;
+while((d=d+1) < 10);
+print d;
+
+print "------------ Test fibonacci with loops ------------";
+
+var a = 0;
+var temp;
+
+for (var b = 1; a < 500; b = temp + b) {
+    print a;
+    temp = a;
+    a = b;
+}
+
+/*
+var s = "";
+
+fun doit(a, b) {
+    s = s+ " "+(a*a*a*b*b*b);
+}
+
+var start = clock();
+
+for(var i=0;i<10;i=i+1) {
+    for(var j=0;j<10;j=j+1) {
+        doit(i,j);
+    }
+}
+
+var end = clock();
+
+print end - start;
+
+fun count(n) {
+    if (n > 1) count(n - 1);
+    print n;
+}
+
+count(3);
+
+fun printStuff() {
+    var x=false;
+    return x;
+    for(var i=0;i<10;i=i+1){
+        print "a";
+    }
+    return x;
+}
+print printStuff();
+
+
+fun makeCounter() {
+    var i = 0;
+    fun count() {
+    i = i + 1;
+    print i;
+    }
+
+    return count;
+}
+
+
+var counter = makeCounter();
+counter(); // "1".
+counter(); // "2".
+
+fun add(a) {
+    fun add2(b) {
+        return a+b;
+    }
+    return add2;
+}
+
+print add(1)(2);
+
+
+fun sayHi(first, last) {
+    print "Hi, " + first + " " + last + "!";
+}
+sayHi("Dear", "Reader");
+
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+    print fib(i);
+}
+
+var p = 0;
+while(true) {
+    p = p+1;
+    if (p==100) break;
+    if (p<99) continue;
+    print p;
+}
+
+
+fun thrice(fn) {
+    for (var i = 1; i <= 3; i = i + 1) {
+        fn(i);
+    }
+}
+
+thrice(fun (a) {
+    print a;
+});
+
+var add = fun (a) {return fun (b) {return a+b;};};
+print add(1234)(5555);
+
+var coolAdd = fun (a) -> fun (b) -> a + b;
+print coolAdd (1234) (1234);
+
+class Point {
+    init(x,y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    toString() {
+        return "[" + this.x + "," + this.y + "]";
+    }
+}
+
+var p = Point(2,3);
+print p.init(4,6);
+print p.toString();
+
+var clos = p.toString;
+
+print clos();
+
+class A {
+    a() {
+        print "a";
+    }
+}
+
+A().a();
+
+class Cake {
+    taste() {
+        var adjective = "delicious";
+        print "The " + this.flavor + " cake is " + adjective + "!";
+    }
+}
+
+var cake = Cake();
+cake.flavor = "German chocolate";
+cake.taste(); // Prints "The German chocolate cake is delicious!".
+
+class Thing {
+    getCallback() {
+        fun localFunction() {
+            print this;
+        }
+
+        return localFunction;
+    }
+}
+
+var callback = Thing().getCallback();
+callback();
+
+
+class Tree {
+    init(v) {
+        this.v = v;
+        this.l = nil;
+        this.r = nil;
+    }
+
+    insert(v) {
+        if(v > this.v) {
+            if(this.r == nil) {
+                this.r = Tree(v);
+            }else{
+                this.r.insert(v);
+            }
+        }else if(v < this.v) {
+            if(this.l == nil) {
+                this.l = Tree(v);
+            }else{
+                this.l.insert(v);
+            }
+        }
+    }
+
+    toString() {
+        return "(" + this.v +" "+ (this.l==nil?"nil":this.l.toString())
+                            +" "+ (this.r==nil?"nil":this.r.toString())
+                            + ")";                                   
+    }
+}
+
+fun floor(a) {
+    return a - a%1;
+}
+
+fun randint(a,b) {
+    return floor(random() * (b-a) + a);
+}
+
+var tree = Tree(randint(0,100));
+for(var i=0;i<10;i=i+1) {
+    tree.insert(randint(0,100));
+}
+
+print tree.toString();
+
+class TreeNode {
+    init(l,x,r) {
+        this.l = l;
+        this.x = x;
+        this.r = r;
+    }
+}
+
+var tree_insert = fun (tree) -> fun (x) -> 
+    (tree == nil) ? TreeNode(nil,x,nil) :
+    (x < tree.x) ? TreeNode(tree_insert (tree.l) (x), tree.x, tree.r) :
+    (x > tree.x) ? TreeNode(tree.l, tree.x, tree_insert (tree.r) (x)) :
+    tree;
+
+var tree_to_string = fun (tree) -> 
+    (tree == nil) ? "nil" :
+    "(" + tree.x + " " + tree_to_string (tree.l)
+                 + " " + tree_to_string (tree.r)
+                 + ")";
+
+var tree2 = nil;
+
+var rep = fun (n) -> fun (f) -> (n <= 0) ? fun (x) -> x :
+    fun (x) -> rep (n-1) (f) (f (x));
+
+print rep (10) (fun (x) -> x + 2) (20);
+
+tree2 = rep (10) (fun (tree) -> tree_insert (tree) (randint(0,100))) (tree2);
+
+print tree_to_string (tree2);
+
+
+
+class Math {
+  class square(n) {
+    return n * n;
+  }
+}
+
+print Math.square(3); // Prints "9".
+*/ // closing comment

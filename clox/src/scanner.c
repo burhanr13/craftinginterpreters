@@ -136,6 +136,8 @@ Token next_token() {
             return make_token(TOKEN_PLUS);
         case '*':
             return make_token(TOKEN_STAR);
+        case '%':
+            return make_token(TOKEN_PERCENT);
         case '!':
             if (*scanner.cur++ == '=') {
                 return make_token(TOKEN_NOT_EQUAL);

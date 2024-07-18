@@ -43,14 +43,18 @@ static void resize(Table* t, size_t newcap) {
     free(oldents);
 }
 
-void table_set(Table* t, ObjString* key, Value val) {
+bool table_set(Table* t, ObjString* key, Value val) {
     if (t->size + 1 > t->cap * LOAD_FACTOR) {
         resize(t, t->cap ? 2 * t->cap : 8);
     }
     Entry* e = find_entry(t, key);
-    if (!e->key && !e->value.b) t->size++;
+    bool newKey = !e->key;
+    if (!e->key && !e->value.b) {
+        t->size++;
+    }
     e->key = key;
     e->value = val;
+    return newKey;
 }
 
 void table_add_all(Table* dest, Table* src) {

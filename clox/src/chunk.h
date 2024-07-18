@@ -5,21 +5,32 @@
 #include "value.h"
 
 enum {
+    OP_NOP,
+    OP_DEF_GLOBAL,
+    OP_PUSH_GLOBAL,
+    OP_POP_GLOBAL,
+    OP_PUSH_LOCAL,
+    OP_POP_LOCAL,
     OP_PUSH_CONST,
     OP_PUSH_NIL,
     OP_PUSH_TRUE,
     OP_PUSH_FALSE,
+    OP_PUSH,
+    OP_POP,
     OP_NEG,
     OP_ADD,
     OP_SUB,
     OP_MUL,
     OP_DIV,
+    OP_MOD,
     OP_NOT,
     OP_EQ,
     OP_GT,
     OP_LT,
     OP_PRINT,
-    OP_POP,
+    OP_JMP,
+    OP_JMP_TRUE,
+    OP_JMP_FALSE,
     OP_RET,
 };
 
