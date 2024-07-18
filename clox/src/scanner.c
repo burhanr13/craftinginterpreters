@@ -33,7 +33,7 @@ Token error_token(char* message) {
     return t;
 }
 
-#define __KWD(kw, type)                                            \
+#define __KWD(kw, type)                                                        \
     return strncmp(p, kw, sizeof kw - 1) ? TOKEN_IDENTIFIER : type
 
 TokenType identifierType() {
@@ -41,12 +41,24 @@ TokenType identifierType() {
     switch (*p++) {
         case 'a':
             __KWD("nd", TOKEN_AND);
+        case 'b':
+            __KWD("reak", TOKEN_BREAK);
         case 'c':
-            __KWD("lass", TOKEN_CLASS);
+            switch (*p++) {
+                case 'a':
+                    __KWD("se", TOKEN_CASE);
+                case 'l':
+                    __KWD("ass", TOKEN_CLASS);
+                case 'o':
+                    __KWD("ntinue", TOKEN_CONTINUE);
+            }
+            break;
+        case 'd':
+            __KWD("o", TOKEN_DO);
         case 'e':
             __KWD("lse", TOKEN_ELSE);
         case 'f':
-            switch(*p++){
+            switch (*p++) {
                 case 'a':
                     __KWD("lse", TOKEN_FALSE);
                 case 'o':
@@ -66,9 +78,15 @@ TokenType identifierType() {
         case 'r':
             __KWD("eturn", TOKEN_RETURN);
         case 's':
-            __KWD("uper", TOKEN_SUPER);
+            switch (*p++) {
+                case 'u':
+                    __KWD("per", TOKEN_SUPER);
+                case 'w':
+                    __KWD("itch", TOKEN_SWITCH);
+            }
+            break;
         case 't':
-            switch(*p++){
+            switch (*p++) {
                 case 'h':
                     __KWD("is", TOKEN_THIS);
                 case 'r':
@@ -82,7 +100,6 @@ TokenType identifierType() {
     }
     return TOKEN_IDENTIFIER;
 }
-
 
 Token next_token() {
     scanner.start = scanner.cur;
@@ -138,6 +155,10 @@ Token next_token() {
             return make_token(TOKEN_STAR);
         case '%':
             return make_token(TOKEN_PERCENT);
+        case '?':
+            return make_token(TOKEN_QUESTION);
+        case ':':
+            return make_token(TOKEN_COLON);
         case '!':
             if (*scanner.cur++ == '=') {
                 return make_token(TOKEN_NOT_EQUAL);

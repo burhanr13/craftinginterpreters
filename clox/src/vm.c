@@ -9,6 +9,8 @@
 #include "chunk.h"
 #include "compiler.h"
 
+#define DEBUG_INFO
+
 VM vm;
 
 void VM_init() {
@@ -106,6 +108,9 @@ int run() {
                 break;
             case OP_POP:
                 --vm.sp;
+                break;
+            case OP_POPN:
+                vm.sp -= *vm.pc++;
                 break;
             case OP_NEG: {
                 POP(Value a);
@@ -221,7 +226,9 @@ int interpret(char* source) {
         goto interpret_end;
     }
 
-    //disassemble_chunk(&chunk);
+#ifdef DEBUG_INFO
+    disassemble_chunk(&chunk);
+#endif
 
     vm.chunk = &chunk;
     vm.pc = chunk.code.d;
@@ -230,6 +237,10 @@ int interpret(char* source) {
 
 interpret_end:
     chunk_free(&chunk);
+
+#ifdef DEBUG_INFO
+    printf("Allocated bytes: %ld\n", alloc_bytes);
+#endif
 
     return res;
 }

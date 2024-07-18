@@ -102,10 +102,10 @@ public class Interpreter {
             return "nil";
         switch (o) {
             case Double d -> {
-                String s = d.toString();
-                if (s.substring(s.length() - 2).equals(".0"))
-                    s = s.substring(0, s.length() - 2);
-                return s;
+                if (d.equals((double)d.intValue())) {
+                    return Integer.toString(d.intValue());
+                }
+                return String.format("%f", d);
             }
             case LoxBuiltin b -> {
                 return "<Lox Builtin>";

@@ -13,7 +13,9 @@
 enum {
     PREC_0,
     PREC_NONE,
+    PREC_COMMA,
     PREC_ASSN,
+    PREC_COND,
     PREC_OR,
     PREC_AND,
     PREC_EQUAL,
@@ -25,7 +27,10 @@ enum {
 };
 
 int infix_prec[TOKEN_MAX] = {
+    [TOKEN_COMMA] = PREC_COMMA,
     [TOKEN_EQUAL] = PREC_ASSN,
+    [TOKEN_QUESTION] = PREC_COND,
+    [TOKEN_COLON] = PREC_COMMA,
     [TOKEN_OR] = PREC_OR,
     [TOKEN_AND] = PREC_AND,
     [TOKEN_EQUAL_EQUAL] = PREC_EQUAL,
@@ -60,7 +65,13 @@ typedef struct {
         int depth;
     } locals[256];
     int nlocals;
+
     int depth;
+
+    int continueDest;
+    int continueDepth;
+    Vector(int) breakSrcs;
+    int breakDepth;
 } Compiler;
 
 Compiler* curState;
@@ -70,6 +81,8 @@ void compiler_init(Compiler* c) {
     c->nglobalrefs = 0;
     c->nlocals = 0;
     c->depth = 0;
+    c->continueDepth = -1;
+    c->breakDepth = -1;
 }
 
 void compiler_free(Compiler* c) {}
@@ -129,6 +142,9 @@ u8 global_ref_id(Token tok) {
         parse_error("Expected " #t ".");                                       \
         return;                                                                \
     } else advance();
+
+#define PARSE_RHS_LA() parse_precedence(infix_prec[parser.prev.type] + 1)
+#define PARSE_RHS_RA() parse_precedence(infix_prec[parser.prev.type])
 
 int emit_jmp(u8 opcode) {
     int instr = curChunk->code.size;
@@ -200,7 +216,7 @@ void parse_precedence(int prec) {
             }
             if (parser.cur.type == TOKEN_EQUAL && prec <= PREC_ASSN) {
                 advance();
-                parse_precedence(PREC_ASSN);
+                PARSE_RHS_RA();
                 EMIT2(pop_op, id);
                 EMIT(OP_PUSH);
             } else {
@@ -213,69 +229,100 @@ void parse_precedence(int prec) {
     }
 
     while (infix_prec[parser.cur.type] >= prec) {
-        advance();
-        switch (parser.prev.type) {
+        switch (parser.cur.type) {
+            case TOKEN_COMMA:
+                advance();
+                EMIT(OP_POP);
+                PARSE_RHS_RA();
+                break;
+            case TOKEN_EQUAL:
+                parse_error("Invalid assignment.");
+                return;
+            case TOKEN_QUESTION: {
+                advance();
+                int ifjmp = emit_jmp(OP_JMP_FALSE);
+                PARSE_RHS_RA();
+                EXPECT(TOKEN_COLON);
+                int elsejmp = emit_jmp(OP_JMP);
+                patch_jmp(ifjmp);
+                PARSE_RHS_RA();
+                patch_jmp(elsejmp);
+                break;
+            }
+            case TOKEN_COLON:
+                parse_error("Invalid use of ':'.");
+                return;
             case TOKEN_OR: {
+                advance();
                 int jmpsc = emit_jmp(OP_JMP_TRUE);
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                PARSE_RHS_RA();
                 EMIT(OP_POP);
                 patch_jmp(jmpsc);
                 EMIT(OP_PUSH);
                 break;
             }
             case TOKEN_AND: {
+                advance();
                 int jmpsc = emit_jmp(OP_JMP_FALSE);
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                PARSE_RHS_RA();
                 EMIT(OP_POP);
                 patch_jmp(jmpsc);
                 EMIT(OP_PUSH);
                 break;
             }
-            case TOKEN_EQUAL:
-                parse_error("Invalid assignment.");
-                return;
             case TOKEN_EQUAL_EQUAL:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_EQ);
                 break;
             case TOKEN_NOT_EQUAL:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT2(OP_EQ, OP_NOT);
                 break;
             case TOKEN_LESS:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_LT);
                 break;
             case TOKEN_LESS_EQUAL:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT2(OP_GT, OP_NOT);
                 break;
             case TOKEN_GREATER:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_GT);
                 break;
             case TOKEN_GREATER_EQUAL:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT2(OP_LT, OP_NOT);
                 break;
             case TOKEN_PLUS:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_ADD);
                 break;
             case TOKEN_MINUS:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_SUB);
                 break;
             case TOKEN_STAR:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_MUL);
                 break;
             case TOKEN_SLASH:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_DIV);
                 break;
             case TOKEN_PERCENT:
-                parse_precedence(infix_prec[parser.prev.type] + 1);
+                advance();
+                PARSE_RHS_LA();
                 EMIT(OP_MOD);
                 break;
             default:
@@ -292,13 +339,22 @@ void enter_scope() {
     curState->depth++;
 }
 
-void leave_scope() {
+int pop_to_depth(int d) {
+    int npop = curState->nlocals;
     for (int i = curState->nlocals - 1; i >= 0; i--) {
-        if (curState->locals[i].depth < curState->depth) break;
-        EMIT(OP_POP);
-        curState->nlocals--;
+        if (curState->locals[i].depth <= d) {
+            npop = curState->nlocals - i - 1;
+            break;
+        }
     }
+    if (npop == 1) EMIT(OP_POP);
+    else if (npop > 1) EMIT2(OP_POPN, npop);
+    return npop;
+}
+
+void leave_scope() {
     curState->depth--;
+    curState->nlocals -= pop_to_depth(curState->depth);
 }
 
 void parse_decl_or_stmt();
@@ -341,36 +397,156 @@ void parse_stmt() {
         }
         case TOKEN_WHILE: {
             advance();
+
             int loopdest = curChunk->code.size;
+
+            int oldContinueDest = curState->continueDest;
+            int oldContinueDepth = curState->continueDepth;
+            curState->continueDest = loopdest;
+            curState->continueDepth = curState->depth;
+
             EXPECT(TOKEN_LEFT_PAREN);
             parse_expr();
             EXPECT(TOKEN_RIGHT_PAREN);
+
             int breakjmp = emit_jmp(OP_JMP_FALSE);
+
+            Vector(int) oldBreakSrcs;
+            Vec_copy(oldBreakSrcs, curState->breakSrcs);
+            int oldBreakDepth = curState->breakDepth;
+            Vec_init(curState->breakSrcs);
+            curState->breakDepth = curState->depth;
+
             parse_stmt();
+
             emit_jmp_back(OP_JMP, loopdest);
             patch_jmp(breakjmp);
+            for (int i = 0; i < curState->breakSrcs.size; i++) {
+                patch_jmp(curState->breakSrcs.d[i]);
+            }
+
+            Vec_free(curState->breakSrcs);
+            Vec_copy(curState->breakSrcs, oldBreakSrcs);
+            curState->breakDepth = oldBreakDepth;
+            curState->continueDest = oldContinueDest;
+            curState->continueDepth = oldContinueDepth;
             break;
         }
         case TOKEN_FOR: {
             advance();
+
+            enter_scope();
+
             EXPECT(TOKEN_LEFT_PAREN);
             parse_decl_or_stmt();
+
             int loopdest = curChunk->code.size;
-            parse_expr();
-            EXPECT(TOKEN_SEMICOLON);
+
+            if (parser.cur.type == TOKEN_SEMICOLON) {
+                advance();
+                EMIT(OP_PUSH_TRUE);
+            } else {
+                parse_expr();
+                EXPECT(TOKEN_SEMICOLON);
+            }
+
             int jmpbreak = emit_jmp(OP_JMP_FALSE);
             int jmpbody = emit_jmp(OP_JMP);
+
             int assndest = curChunk->code.size;
-            parse_expr();
-            EMIT(OP_POP);
+            int oldContinueDest = curState->continueDest;
+            int oldContinueDepth = curState->continueDepth;
+            curState->continueDest = assndest;
+            curState->continueDepth = curState->depth;
+            if (parser.cur.type == TOKEN_RIGHT_PAREN) {
+                advance();
+            } else {
+                parse_expr();
+                EMIT(OP_POP);
+                EXPECT(TOKEN_RIGHT_PAREN);
+            }
             emit_jmp_back(OP_JMP, loopdest);
-            EXPECT(TOKEN_RIGHT_PAREN);
             patch_jmp(jmpbody);
+
+            Vector(int) oldBreakSrcs;
+            Vec_copy(oldBreakSrcs, curState->breakSrcs);
+            int oldBreakDepth = curState->breakDepth;
+            Vec_init(curState->breakSrcs);
+            curState->breakDepth = curState->depth;
+
             parse_stmt();
             emit_jmp_back(OP_JMP, assndest);
+
             patch_jmp(jmpbreak);
+            for (int i = 0; i < curState->breakSrcs.size; i++) {
+                patch_jmp(curState->breakSrcs.d[i]);
+            }
+
+            Vec_free(curState->breakSrcs);
+            Vec_copy(curState->breakSrcs, oldBreakSrcs);
+            curState->breakDepth = oldBreakDepth;
+
+            curState->continueDest = oldContinueDest;
+            curState->continueDepth = oldContinueDepth;
+
+            leave_scope();
             break;
         }
+        case TOKEN_DO: {
+            advance();
+
+            int loopdest = curChunk->code.size;
+
+            Vector(int) oldBreakSrcs;
+            Vec_copy(oldBreakSrcs, curState->breakSrcs);
+            int oldBreakDepth = curState->breakDepth;
+            Vec_init(curState->breakSrcs);
+            curState->breakDepth = curState->depth;
+
+            int oldContinueDest = curState->continueDest;
+            int oldContinueDepth = curState->continueDepth;
+            curState->continueDest = loopdest;
+            curState->continueDepth = curState->depth;
+
+            parse_stmt();
+
+            EXPECT(TOKEN_WHILE);
+            EXPECT(TOKEN_LEFT_PAREN);
+            parse_expr();
+            EXPECT(TOKEN_RIGHT_PAREN);
+            EXPECT(TOKEN_SEMICOLON);
+            emit_jmp_back(OP_JMP_TRUE, loopdest);
+
+            for (int i = 0; i < curState->breakSrcs.size; i++) {
+                patch_jmp(curState->breakSrcs.d[i]);
+            }
+
+            Vec_free(curState->breakSrcs);
+            Vec_copy(curState->breakSrcs, oldBreakSrcs);
+            curState->breakDepth = oldBreakDepth;
+            curState->continueDest = oldContinueDest;
+            curState->continueDepth = oldContinueDepth;
+
+            break;
+        }
+        case TOKEN_BREAK:
+            if (curState->breakDepth == -1) {
+                parse_error("Cannot use break outside loop or switch.");
+                return;
+            }
+            advance();
+            pop_to_depth(curState->breakDepth);
+            Vec_push(curState->breakSrcs, emit_jmp(OP_JMP));
+            break;
+        case TOKEN_CONTINUE:
+            if (curState->continueDepth == -1) {
+                parse_error("Cannot use continue outside loop.");
+                return;
+            }
+            advance();
+            pop_to_depth(curState->continueDepth);
+            emit_jmp_back(OP_JMP, curState->continueDest);
+            break;
         case TOKEN_SEMICOLON:
             advance();
             break;

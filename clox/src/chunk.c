@@ -5,15 +5,17 @@
 #include <string.h>
 
 void chunk_init(Chunk* c) {
-    memset(c, 0, sizeof *c);
+    Vec_init(c->code);
+    Vec_init(c->constants);
+    Vec_init(c->lines);
 
     Vec_push(c->lines, -1);
 }
 
 void chunk_free(Chunk* c) {
-    free(c->code.d);
-    free(c->constants.d);
-    free(c->lines.d);
+    Vec_free(c->code);
+    Vec_free(c->constants);
+    Vec_free(c->lines);
 }
 
 void chunk_write(Chunk* c, u8 b, int line) {
@@ -56,44 +58,42 @@ int disassemble_instr(Chunk* c, int off) {
             printf("nop");
             break;
         case OP_DEF_GLOBAL: {
-            printf("def globals[");
+            printf("def ");
             int const_ind = c->code.d[off++];
             printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
-            printf("]");
             break;
         }
         case OP_PUSH_GLOBAL: {
-            printf("push globals[");
+            printf("push ");
             int const_ind = c->code.d[off++];
             printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
-            printf("]");
             break;
         }
         case OP_POP_GLOBAL: {
-            printf("pop globals[");
+            printf("pop ");
             int const_ind = c->code.d[off++];
             printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
-            printf("]");
             break;
         }
         case OP_PUSH_LOCAL: {
-            printf("push locals[");
+            printf("push local$");
             int ind = c->code.d[off++];
             printf("%d", ind);
-            printf("]");
             break;
         }
         case OP_POP_LOCAL: {
-            printf("pop locals[");
+            printf("pop local$");
             int ind = c->code.d[off++];
             printf("%d", ind);
-            printf("]");
             break;
         }
         case OP_PUSH_CONST: {
             printf("push ");
             int const_ind = c->code.d[off++];
+            bool isStr = isObjType(c->constants.d[const_ind], OT_STRING);
+            if (isStr) printf("\"");
             print_value(c->constants.d[const_ind]);
+            if (isStr) printf("\"");
             break;
         }
         case OP_PUSH_NIL:
@@ -110,6 +110,9 @@ int disassemble_instr(Chunk* c, int off) {
             break;
         case OP_POP:
             printf("pop");
+            break;
+        case OP_POPN:
+            printf("pop %dx", c->code.d[off++]);
             break;
         case OP_NEG:
             printf("neg");

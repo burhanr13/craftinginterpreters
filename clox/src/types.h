@@ -14,9 +14,14 @@ typedef uint32_t u32;
 #define Vector(T)                                                              \
     struct {                                                                   \
         T* d;                                                                  \
-        size_t cap;                                                            \
         size_t size;                                                           \
+        size_t cap;                                                            \
     }
+
+#define Vec_init(v) ((v).d = NULL, (v).size = 0, (v).cap = 0)
+#define Vec_copy(v1, v2)                                                       \
+    ((v1).d = (v2).d, (v1).size = (v2).size, (v1).cap = (v2).cap)
+#define Vec_free(v) (free((v).d))
 
 #define Vec_push(v, e)                                                         \
     do {                                                                       \

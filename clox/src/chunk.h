@@ -17,6 +17,7 @@ enum {
     OP_PUSH_FALSE,
     OP_PUSH,
     OP_POP,
+    OP_POPN,
     OP_NEG,
     OP_ADD,
     OP_SUB,
