@@ -130,6 +130,33 @@ while (true) {
     i = i+1;
 }
 
+print "========= Test switch case ============";
+
+for(var i=0;i<15;i=i+1) {
+    switch(i) {
+        case 1:
+            print "one";
+        case 2:
+        case 3:
+            print "small number";
+            break;
+        case 4:
+            print "four";
+            break;
+        case 5:
+            print "five";
+            break;
+        case 6:
+            print "six";
+            break;
+        case 10:
+            print "ten";
+            break;
+        default:
+            print "something else";
+    }
+}
+
 /*
 var s = "";
 

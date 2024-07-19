@@ -135,14 +135,14 @@ int disassemble_instr(Chunk* c, int off) {
         case OP_NOT:
             printf("not");
             break;
-        case OP_EQ:
-            printf("eq");
+        case OP_TEQ:
+            printf("teq");
             break;
-        case OP_GT:
-            printf("gt");
+        case OP_TGT:
+            printf("tgt");
             break;
-        case OP_LT:
-            printf("lt");
+        case OP_TLT:
+            printf("tlt");
             break;
         case OP_PRINT:
             printf("print");

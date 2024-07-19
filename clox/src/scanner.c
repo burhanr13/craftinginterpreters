@@ -54,7 +54,13 @@ TokenType identifierType() {
             }
             break;
         case 'd':
-            __KWD("o", TOKEN_DO);
+            switch (*p++) {
+                case 'e':
+                    __KWD("fault", TOKEN_DEFAULT);
+                case 'o':
+                    __KWD("", TOKEN_DO);
+            }
+            break;
         case 'e':
             __KWD("lse", TOKEN_ELSE);
         case 'f':

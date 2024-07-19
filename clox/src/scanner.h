@@ -37,6 +37,7 @@ typedef enum {
     TOKEN_CLASS,
     TOKEN_CONTINUE,
     TOKEN_DO,
+    TOKEN_DEFAULT,
     TOKEN_ELSE,
     TOKEN_FALSE,
     TOKEN_FOR,

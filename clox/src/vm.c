@@ -162,17 +162,17 @@ int run() {
                 PUSH(NUMBER_VAL(fmod(a.num, b.num)));
                 break;
             }
-            case OP_EQ: {
+            case OP_TEQ: {
                 POP(Value a);
                 POP(Value b);
                 PUSH(BOOL_VAL(value_equal(a, b)));
                 break;
             }
-            case OP_GT: {
+            case OP_TGT: {
                 BINARY(>, BOOL_VAL);
                 break;
             }
-            case OP_LT: {
+            case OP_TLT: {
                 BINARY(<, BOOL_VAL);
                 break;
             }

@@ -23,6 +23,7 @@ enum {
     PREC_SUM,
     PREC_PROD,
     PREC_UNARY,
+
     PREC_MAX
 };
 
@@ -250,7 +251,6 @@ void parse_precedence(int prec) {
                 break;
             }
             case TOKEN_COLON:
-                parse_error("Invalid use of ':'.");
                 return;
             case TOKEN_OR: {
                 advance();
@@ -273,32 +273,32 @@ void parse_precedence(int prec) {
             case TOKEN_EQUAL_EQUAL:
                 advance();
                 PARSE_RHS_LA();
-                EMIT(OP_EQ);
+                EMIT(OP_TEQ);
                 break;
             case TOKEN_NOT_EQUAL:
                 advance();
                 PARSE_RHS_LA();
-                EMIT2(OP_EQ, OP_NOT);
+                EMIT2(OP_TEQ, OP_NOT);
                 break;
             case TOKEN_LESS:
                 advance();
                 PARSE_RHS_LA();
-                EMIT(OP_LT);
+                EMIT(OP_TLT);
                 break;
             case TOKEN_LESS_EQUAL:
                 advance();
                 PARSE_RHS_LA();
-                EMIT2(OP_GT, OP_NOT);
+                EMIT2(OP_TGT, OP_NOT);
                 break;
             case TOKEN_GREATER:
                 advance();
                 PARSE_RHS_LA();
-                EMIT(OP_GT);
+                EMIT(OP_TGT);
                 break;
             case TOKEN_GREATER_EQUAL:
                 advance();
                 PARSE_RHS_LA();
-                EMIT2(OP_LT, OP_NOT);
+                EMIT2(OP_TLT, OP_NOT);
                 break;
             case TOKEN_PLUS:
                 advance();
@@ -357,6 +357,15 @@ void leave_scope() {
     curState->nlocals -= pop_to_depth(curState->depth);
 }
 
+void synchronize() {
+    advance();
+    while (parser.cur.type != TOKEN_EOF &&
+           parser.cur.type != TOKEN_LEFT_BRACE &&
+           parser.prev.type != TOKEN_SEMICOLON)
+        advance();
+    parser.curError = false;
+}
+
 void parse_decl_or_stmt();
 
 void parse_stmt() {
@@ -367,6 +376,7 @@ void parse_stmt() {
             while (parser.cur.type != TOKEN_EOF &&
                    parser.cur.type != TOKEN_RIGHT_BRACE) {
                 parse_decl_or_stmt();
+                if (parser.curError) synchronize();
             }
             leave_scope();
             EXPECT(TOKEN_RIGHT_BRACE);
@@ -529,6 +539,72 @@ void parse_stmt() {
 
             break;
         }
+        case TOKEN_SWITCH: {
+            advance();
+
+            enter_scope();
+
+            EXPECT(TOKEN_LEFT_PAREN);
+            parse_expr();
+            EXPECT(TOKEN_RIGHT_PAREN);
+            curState->locals[curState->nlocals].name.start = "";
+            curState->locals[curState->nlocals].name.len = 0;
+            curState->locals[curState->nlocals].depth = curState->depth;
+            int comp_local = curState->nlocals++;
+
+            Vector(int) oldBreakSrcs;
+            Vec_copy(oldBreakSrcs, curState->breakSrcs);
+            int oldBreakDepth = curState->breakDepth;
+            Vec_init(curState->breakSrcs);
+            curState->breakDepth = curState->depth;
+
+            EXPECT(TOKEN_LEFT_BRACE);
+
+            int casejmp = emit_jmp(OP_JMP);
+
+            while (parser.cur.type != TOKEN_EOF &&
+                   parser.cur.type != TOKEN_RIGHT_BRACE) {
+                switch (parser.cur.type) {
+                    case TOKEN_CASE: {
+                        advance();
+                        int skipjmp = emit_jmp(OP_JMP);
+                        patch_jmp(casejmp);
+                        EMIT2(OP_PUSH_LOCAL, comp_local);
+                        parse_expr();
+                        EMIT(OP_TEQ);
+                        EXPECT(TOKEN_COLON);
+                        casejmp = emit_jmp(OP_JMP_FALSE);
+                        patch_jmp(skipjmp);
+                        break;
+                    }
+                    case TOKEN_DEFAULT: {
+                        advance();
+                        EXPECT(TOKEN_COLON);
+                        patch_jmp(casejmp);
+                        casejmp = -1;
+                        break;
+                    }
+                    default:
+                        parse_stmt();
+                }
+                if (parser.curError) synchronize();
+            }
+            EXPECT(TOKEN_RIGHT_BRACE);
+
+            if (casejmp != -1) patch_jmp(casejmp);
+
+            for (int i = 0; i < curState->breakSrcs.size; i++) {
+                patch_jmp(curState->breakSrcs.d[i]);
+            }
+
+            Vec_free(curState->breakSrcs);
+            Vec_copy(curState->breakSrcs, oldBreakSrcs);
+            curState->breakDepth = oldBreakDepth;
+
+            leave_scope();
+
+            break;
+        }
         case TOKEN_BREAK:
             if (curState->breakDepth == -1) {
                 parse_error("Cannot use break outside loop or switch.");
@@ -589,13 +665,6 @@ void parse_decl_or_stmt() {
         default:
             parse_stmt();
     }
-}
-
-void synchronize() {
-    advance();
-    while (parser.cur.type != TOKEN_EOF && parser.prev.type != TOKEN_SEMICOLON)
-        advance();
-    parser.curError = false;
 }
 
 bool compile(char* source, Chunk* chunk) {
