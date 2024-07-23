@@ -45,7 +45,7 @@ DECL_BUILTIN(getc) {
     return OK;
 }
 
-DECL_BUILTIN(source) {
+DECL_BUILTIN(loadModule) {
     if (argc < 1) return RUNTIME_ERROR;
     if (!isObjType(argv[1], OT_STRING)) return RUNTIME_ERROR;
 
@@ -62,15 +62,10 @@ DECL_BUILTIN(source) {
     fclose(fp);
 
     ObjFunction* compiled = compile(program);
-
     free(program);
 
-    vm.csp++;
-    vm.csp->func = compiled;
-    vm.csp->ip = compiled->chunk.code.d;
-    vm.csp->fp = argv;
-    vm.csp->up = NULL;
+    if (!compiled) return RUNTIME_ERROR;
 
-    argv[0] = NIL_VAL;
+    argv[0] = OBJ_VAL(compiled);
     return OK;
 }

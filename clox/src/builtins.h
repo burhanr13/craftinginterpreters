@@ -14,6 +14,6 @@ DECL_BUILTIN(println);
 DECL_BUILTIN(scanln);
 DECL_BUILTIN(getc);
 
-DECL_BUILTIN(source);
+DECL_BUILTIN(loadModule);
 
 #endif

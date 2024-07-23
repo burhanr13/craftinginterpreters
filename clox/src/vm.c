@@ -25,7 +25,7 @@ void VM_init() {
     ADD_BUILTIN(scanln);
     ADD_BUILTIN(getc);
 
-    ADD_BUILTIN(source);
+    ADD_BUILTIN(loadModule);
 }
 
 void VM_free() {
@@ -350,12 +350,10 @@ int run(ObjFunction* toplevel) {
                         }
                         break;
                     case VT_BUILTIN:
-                        FLUSH_REGS();
                         if (v.builtin(nargs, sp - nargs - 1) != OK) {
                             runtime_error("Error from builtin function.");
                             return RUNTIME_ERROR;
                         }
-                        RESTORE_REGS();
                         sp -= nargs;
                         break;
                     default:
