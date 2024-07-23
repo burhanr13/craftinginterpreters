@@ -12,5 +12,8 @@ DECL_BUILTIN(clock);
 DECL_BUILTIN(print);
 DECL_BUILTIN(println);
 DECL_BUILTIN(scanln);
+DECL_BUILTIN(getc);
+
+DECL_BUILTIN(source);
 
 #endif

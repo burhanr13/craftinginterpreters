@@ -13,6 +13,9 @@ bool value_equal(Value a, Value b) {
             return a.b == b.b;
         case VT_NIL:
             return true;
+        case VT_CHAR:
+            return a.c == b.c;
+            break;
         case VT_OBJ:
             return obj_equal(a.obj, b.obj);
         case VT_BUILTIN:
@@ -34,6 +37,9 @@ void fprint_value(FILE* file, Value v) {
             break;
         case VT_BOOL:
             printf("%s", v.b ? "true" : "false");
+            break;
+        case VT_CHAR:
+            printf("%c", v.c);
             break;
         case VT_OBJ:
             fprint_obj(file, v.obj);
@@ -61,6 +67,8 @@ ObjString* string_value(Value v) {
             return v.b ? CREATE_STRING_LITERAL("true")
                        : CREATE_STRING_LITERAL("false");
             break;
+        case VT_CHAR:
+            return create_string(&v.c, 1);
         case VT_OBJ:
             return CREATE_STRING_LITERAL("<obj>");
             break;

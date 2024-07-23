@@ -10,7 +10,7 @@
 
 #define STACK_SIZE (MAX_CALLS * MAX_LOCALS)
 
-enum { OK, COMPILE_ERROR, RUNTIME_ERROR };
+enum { OK, NO_FILE, COMPILE_ERROR, RUNTIME_ERROR };
 
 typedef struct {
     ObjFunction* func;
@@ -38,5 +38,7 @@ void VM_init();
 void VM_free();
 
 int interpret(char* source);
+
+int run_file(char* filename);
 
 #endif

@@ -52,7 +52,6 @@ int infix_prec[TOKEN_MAX] = {
     [TOKEN_SLASH] = PREC_PROD,
     [TOKEN_PERCENT] = PREC_PROD,
     [TOKEN_LEFT_PAREN] = PREC_CALL,
-    [TOKEN_DOT] = PREC_CALL,
 };
 
 struct {
@@ -331,6 +330,10 @@ void parse_precedence(int prec) {
             advance();
             EMIT_CONST(OBJ_VAL(
                 create_string(parser.prev.start + 1, parser.prev.len - 2)));
+            break;
+        case TOKEN_CHAR:
+            advance();
+            EMIT_CONST(CHAR_VAL(parser.prev.start[1]));
             break;
         case TOKEN_IDENTIFIER:
             advance();

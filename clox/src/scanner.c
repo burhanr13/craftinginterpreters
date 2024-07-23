@@ -221,6 +221,12 @@ Token next_token() {
             }
             scanner.cur++;
             return make_token(TOKEN_STRING);
+        case '\'':
+            scanner.cur++;
+            if (*scanner.cur++ != '\'') {
+                return error_token("Unterminated char.");
+            }
+            return make_token(TOKEN_CHAR);
         default:
             return error_token("Lexer error.");
     }

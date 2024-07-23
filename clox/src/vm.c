@@ -22,6 +22,9 @@ void VM_init() {
     ADD_BUILTIN(print);
     ADD_BUILTIN(println);
     ADD_BUILTIN(scanln);
+    ADD_BUILTIN(getc);
+
+    ADD_BUILTIN(source);
 }
 
 void VM_free() {
@@ -266,7 +269,7 @@ int run(ObjFunction* toplevel) {
                         }
                         break;
                     case VT_BUILTIN:
-                        if (v.builtin(nargs, sp - nargs - 1) == RUNTIME_ERROR) {
+                        if (v.builtin(nargs, sp - nargs - 1) != OK) {
                             runtime_error("Error from builtin function.");
                             return RUNTIME_ERROR;
                         }
@@ -299,4 +302,21 @@ int interpret(char* source) {
     }
 
     return run(toplevel);
+}
+
+int run_file(char* filename) {
+    FILE* fp = fopen(filename, "r");
+    if (!fp) return NO_FILE;
+    fseek(fp, 0, SEEK_END);
+    int len = ftell(fp);
+    char* program = malloc(len + 1);
+    program[len] = '\0';
+    fseek(fp, 0, SEEK_SET);
+    (void) !fread(program, 1, len, fp);
+    fclose(fp);
+
+    int code = interpret(program);
+
+    free(program);
+    return code;
 }
