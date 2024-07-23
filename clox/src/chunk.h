@@ -10,6 +10,9 @@ enum {
     OP_POP_GLOBAL,
     OP_PUSH_LOCAL,
     OP_POP_LOCAL,
+    OP_PUSH_UPVALUE,
+    OP_POP_UPVALUE,
+    OP_PUSH_CLOSURE,
     OP_PUSH_CONST,
     OP_PUSH_NIL,
     OP_PUSH_TRUE,
@@ -42,6 +45,7 @@ typedef struct _Chunk {
     Vector(Value) constants;
 
     Vector(int) lines;
+    int linesStart;
 
 } Chunk;
 

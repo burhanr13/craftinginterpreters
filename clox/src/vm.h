@@ -15,6 +15,7 @@ enum { OK, NO_FILE, COMPILE_ERROR, RUNTIME_ERROR };
 typedef struct {
     ObjFunction* func;
     Value* fp;
+    ObjUpvalue** up;
     u8* ip;
 } CallFrame;
 
@@ -23,11 +24,13 @@ typedef struct {
     Table strings;
     Table globals;
 
+    ObjUpvalue* open_upvalues;
+
     size_t alloc_bytes;
 
-    CallFrame* cur_frame;
-    Value** cur_sp;
-    CallFrame** cur_csp;
+    CallFrame* frame;
+    Value** spp;
+    CallFrame** cspp;
     CallFrame call_stack[MAX_CALLS];
     Value stack[STACK_SIZE];
 } VM;

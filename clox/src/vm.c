@@ -17,6 +17,7 @@ void VM_init() {
 
     table_init(&vm.strings);
     table_init(&vm.globals);
+    vm.open_upvalues = NULL;
 
     ADD_BUILTIN(clock);
     ADD_BUILTIN(print);
@@ -34,7 +35,7 @@ void VM_free() {
 }
 
 void runtime_error(char* message, ...) {
-    CallFrame f = *vm.cur_frame;
+    CallFrame f = *vm.frame;
     eprintf("Runtime error at line %d: ",
             chunk_get_instr_line(&f.func->chunk, f.ip - 1));
     va_list l;
@@ -42,10 +43,10 @@ void runtime_error(char* message, ...) {
     vfprintf(stderr, message, l);
     va_end(l);
     eprintf("\n");
-    CallFrame* p = *vm.cur_csp;
+    CallFrame* p = *vm.cspp;
     *p = f;
     for (; p > vm.call_stack; p--) {
-        eprintf("from call of %s at line %d\n",
+        eprintf("    from call of %s at line %d\n",
                 p[0].func->name ? p[0].func->name->data : "<anonymous fn>",
                 chunk_get_instr_line(&p[-1].func->chunk, p[-1].ip - 1));
     }
@@ -63,7 +64,7 @@ void runtime_error(char* message, ...) {
     POP(Value b);                                                              \
     POP(Value a);                                                              \
     if (a.type != VT_NUMBER || b.type != VT_NUMBER) {                          \
-        runtime_error("Operand must be a number.");                            \
+        runtime_error("Invalid operand for '" #op "'.");                       \
         return RUNTIME_ERROR;                                                  \
     }                                                                          \
     PUSH(res_val(a.num op b.num));
@@ -72,8 +73,15 @@ bool truthy(Value v) {
     return !(v.type == VT_NIL || (v.type == VT_BOOL && !v.b));
 }
 
-int run(ObjFunction* toplevel) {
+void close_upvalues(Value* sp) {
+    while (vm.open_upvalues && vm.open_upvalues->loc >= sp) {
+        vm.open_upvalues->closed = *vm.open_upvalues->loc;
+        vm.open_upvalues->loc = &vm.open_upvalues->closed;
+        vm.open_upvalues = vm.open_upvalues->next;
+    }
+}
 
+int run(ObjFunction* toplevel) {
     Value* sp = vm.stack;
     CallFrame* csp = vm.call_stack;
 
@@ -82,13 +90,25 @@ int run(ObjFunction* toplevel) {
     CallFrame cur;
     cur.fp = vm.stack;
     cur.func = (ObjFunction*) cur.fp[0].obj;
+    cur.up = NULL;
     cur.ip = cur.func->chunk.code.d;
 
-    vm.cur_frame = &cur;
-    vm.cur_sp = &sp;
-    vm.cur_csp = &csp;
+    vm.frame = &cur;
+    vm.spp = &sp;
+    vm.cspp = &csp;
+
+#ifdef DEBUG_TRACE
+    eprintf("-------------- Begin Trace --------------\n");
+#endif
 
     while (true) {
+#ifdef DEBUG_TRACE
+        eprintf("Stack:");
+        for (Value* p = cur.fp; p < sp; p++) eprintf(" "), eprint_value(*p);
+        eprintf("\n%04lx: ", cur.ip - cur.func->chunk.code.d);
+        disassemble_instr(&cur.func->chunk, cur.ip - cur.func->chunk.code.d);
+        eprintf("\n");
+#endif
         switch (FETCH()) {
             case OP_DEF_GLOBAL: {
                 POP(Value v);
@@ -124,6 +144,42 @@ int run(ObjFunction* toplevel) {
                 POP(cur.fp[FETCH()]);
                 break;
             }
+            case OP_PUSH_UPVALUE: {
+                PUSH(*cur.up[FETCH()]->loc);
+                break;
+            }
+            case OP_POP_UPVALUE: {
+                POP(*cur.up[FETCH()]->loc);
+                break;
+            }
+            case OP_PUSH_CLOSURE: {
+                ObjFunction* func = (ObjFunction*) CONST(FETCH()).obj;
+                ObjClosure* clos = create_closure(func);
+                clos->nupvalues = func->nupvalues;
+                clos->upvalues =
+                    malloc(clos->nupvalues * sizeof *clos->upvalues);
+                for (int i = 0; i < clos->nupvalues; i++) {
+                    if (func->upvalues[i].local) {
+                        Value* loc = &cur.fp[func->upvalues[i].id];
+                        ObjUpvalue** ptr = &vm.open_upvalues;
+                        while (*ptr && (*ptr)->loc > loc) ptr = &(*ptr)->next;
+                        ObjUpvalue* upval;
+                        if (*ptr && (*ptr)->loc == loc) {
+                            upval = *ptr;
+                        } else {
+                            upval =
+                                create_upvalue(&cur.fp[func->upvalues[i].id]);
+                            upval->next = *ptr;
+                            *ptr = upval;
+                        }
+                        clos->upvalues[i] = upval;
+                    } else {
+                        clos->upvalues[i] = cur.up[func->upvalues[i].id];
+                    }
+                }
+                PUSH(OBJ_VAL(clos));
+                break;
+            }
             case OP_PUSH_CONST:
                 PUSH(CONST(FETCH()));
                 break;
@@ -141,14 +197,16 @@ int run(ObjFunction* toplevel) {
                 break;
             case OP_POP:
                 --sp;
+                close_upvalues(sp);
                 break;
             case OP_POPN:
                 sp -= FETCH();
+                close_upvalues(sp);
                 break;
             case OP_NEG: {
                 POP(Value a);
                 if (a.type != VT_NUMBER) {
-                    runtime_error("Operand must be a number.");
+                    runtime_error("Invalid operand for unary '-'.");
                     return RUNTIME_ERROR;
                 }
                 PUSH(NUMBER_VAL(-a.num));
@@ -171,7 +229,7 @@ int run(ObjFunction* toplevel) {
                     PUSH(OBJ_VAL(
                         concat_string((ObjString*) a.obj, string_value(b))));
                 } else {
-                    runtime_error("Operand must be a number or string.");
+                    runtime_error("Invalid operand for '+'.");
                     return RUNTIME_ERROR;
                 }
                 break;
@@ -192,7 +250,7 @@ int run(ObjFunction* toplevel) {
                 POP(Value b);
                 POP(Value a);
                 if (a.type != VT_NUMBER || b.type != VT_NUMBER) {
-                    runtime_error("Operand must be a number.");
+                    runtime_error("Invalid operand for '%%'.");
                     return RUNTIME_ERROR;
                 }
                 PUSH(NUMBER_VAL(fmod(a.num, b.num)));
@@ -254,6 +312,27 @@ int run(ObjFunction* toplevel) {
                                 *csp++ = cur;
                                 cur.func = func;
                                 cur.fp = sp - nargs - 1;
+                                cur.up = NULL;
+                                cur.ip = func->chunk.code.d;
+                                if (func->nargs != nargs) {
+                                    runtime_error("Invalid argument count, "
+                                                  "expected %d, got %d.",
+                                                  func->nargs, nargs);
+                                    return RUNTIME_ERROR;
+                                }
+                                break;
+                            }
+                            case OT_CLOSURE: {
+                                ObjClosure* clos = (ObjClosure*) v.obj;
+                                ObjFunction* func = clos->f;
+                                if (csp - vm.call_stack == MAX_CALLS) {
+                                    runtime_error("Max call depth exceeded.");
+                                    return RUNTIME_ERROR;
+                                }
+                                *csp++ = cur;
+                                cur.func = func;
+                                cur.fp = sp - nargs - 1;
+                                cur.up = clos->upvalues;
                                 cur.ip = func->chunk.code.d;
                                 if (func->nargs != nargs) {
                                     runtime_error("Invalid argument count, "
@@ -286,6 +365,7 @@ int run(ObjFunction* toplevel) {
                 POP(Value v);
                 sp = cur.fp;
                 cur = *--csp;
+                close_upvalues(sp);
                 PUSH(v);
                 break;
             }

@@ -23,6 +23,11 @@ void fprint_obj(FILE* file, Obj* obj) {
                 printf("<fn %s>", ((ObjFunction*) obj)->name->data);
             else printf("<anonymous fn>");
             break;
+        case OT_CLOSURE:
+            fprint_obj(file, (Obj*) ((ObjClosure*) obj)->f);
+            break;
+        case OT_UPVALUE:
+            break;
     }
 #undef printf
 }
@@ -36,6 +41,9 @@ Obj* alloc_obj(ObjType t, size_t size) {
     return o;
 }
 
+#define ALLOC_OBJ(type, objtype, adlen)                                        \
+    (type*) alloc_obj(objtype, sizeof(type) + adlen)
+
 void free_obj(Obj* o) {
     size_t size = 0;
     switch (o->type) {
@@ -43,9 +51,16 @@ void free_obj(Obj* o) {
             size = sizeof(ObjString) + ((ObjString*) o)->len + 1;
             break;
         case OT_FUNCTION:
+            size = sizeof(ObjFunction);
+            free(((ObjFunction*) o)->upvalues);
             chunk_free(&((ObjFunction*) o)->chunk);
             break;
-        default:
+        case OT_CLOSURE:
+            size = sizeof(ObjClosure);
+            free(((ObjClosure*) o)->upvalues);
+            break;
+        case OT_UPVALUE:
+            size = sizeof(OT_UPVALUE);
             break;
     }
     free(o);
@@ -60,8 +75,7 @@ void free_all_obj() {
     }
 }
 
-#define ALLOC_STRING(len)                                                      \
-    ((ObjString*) alloc_obj(OT_STRING, sizeof(ObjString) + len + 1))
+#define ALLOC_STRING(len) ALLOC_OBJ(ObjString, OT_STRING, len + 1)
 
 u32 hash(char* str) {
     u32 hash = 2166136261u;
@@ -110,12 +124,28 @@ ObjString* concat_string(ObjString* a, ObjString* b) {
 }
 
 ObjFunction* create_function() {
-    ObjFunction* func =
-        (ObjFunction*) alloc_obj(OT_FUNCTION, sizeof(ObjFunction));
+    ObjFunction* func = ALLOC_OBJ(ObjFunction, OT_FUNCTION, 0);
     func->name = NULL;
     func->nargs = 0;
+    func->nupvalues = 0;
+    func->upvalues = NULL;
     chunk_init(&func->chunk);
     return func;
+}
+
+ObjClosure* create_closure(ObjFunction* func) {
+    ObjClosure* clos = ALLOC_OBJ(ObjClosure, OT_CLOSURE, 0);
+    clos->f = func;
+    clos->nupvalues = 0;
+    clos->upvalues = NULL;
+    return clos;
+}
+
+ObjUpvalue* create_upvalue(Value* loc) {
+    ObjUpvalue* upval = ALLOC_OBJ(ObjUpvalue, OT_UPVALUE, 0);
+    upval->loc = loc;
+    upval->next = NULL;
+    return upval;
 }
 
 void disassemble_function(ObjFunction* func) {

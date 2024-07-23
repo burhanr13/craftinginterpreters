@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 
-#include "object.h"
 #include "types.h"
 
 typedef enum {
@@ -16,6 +15,8 @@ typedef enum {
 } ValueType;
 
 typedef struct _Value Value;
+typedef struct _Obj Obj;
+typedef struct _ObjString ObjString;
 
 typedef int (BuiltinFn)(int argc, Value* argv);
 
@@ -36,10 +37,6 @@ typedef struct _Value {
 #define CHAR_VAL(_c) ((Value){.type = VT_CHAR, {.c = _c}})
 #define OBJ_VAL(o) ((Value){.type = VT_OBJ, {.obj = (Obj*) o}})
 #define BUILTIN_VAL(_b) ((Value){.type = VT_BUILTIN, {.builtin = _b}})
-
-static inline bool isObjType(Value v, ObjType t) {
-    return v.type == VT_OBJ && v.obj->type == t;
-}
 
 bool value_equal(Value a, Value b);
 void fprint_value(FILE* file, Value v);

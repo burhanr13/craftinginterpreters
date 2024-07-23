@@ -65,10 +65,11 @@ DECL_BUILTIN(source) {
 
     free(program);
 
-    **vm.cur_csp = *vm.cur_frame;
-    vm.cur_frame->func = compiled;
-    vm.cur_frame->ip = compiled->chunk.code.d;
-    vm.cur_frame->fp = argv;
+    **vm.cspp = *vm.frame;
+    vm.frame->func = compiled;
+    vm.frame->ip = compiled->chunk.code.d;
+    vm.frame->fp = argv;
+    vm.frame->up = NULL;
 
     argv[0] = NIL_VAL;
     return OK;

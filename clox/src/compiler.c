@@ -76,6 +76,11 @@ typedef struct _Compiler {
         int depth;
     } locals[MAX_LOCALS];
     int nlocals;
+    struct {
+        u8 id;
+        bool local;
+    } upvalues[MAX_LOCALS];
+    int nupvalues;
 
     int depth;
 
@@ -99,20 +104,37 @@ void compiler_init(Compiler* c) {
     c->locals[0].name.len = 0;
     c->locals[0].depth = -1;
     c->nlocals = 1;
+    c->nupvalues = 0;
     c->depth = curState ? curState->depth : 0;
     c->continueDepth = -1;
     c->breakDepth = -1;
     curState = c;
 }
 
-ObjFunction* compiler_end() {
-    EMIT(OP_PUSH_NIL);
-    EMIT(OP_RET);
-#ifdef DEBUG_INFO
-    if (!parser.hadError) disassemble_function(curState->f);
-#endif
+ObjFunction* compiler_end(bool ret_nil) {
+    if (ret_nil) {
+        EMIT(OP_PUSH_NIL);
+        EMIT(OP_RET);
+    }
     ObjFunction* f = curState->f;
+    f->nupvalues = curState->nupvalues;
+    if (f->nupvalues) {
+        f->upvalues = malloc(f->nupvalues * sizeof *f->upvalues);
+        memcpy(f->upvalues, curState->upvalues,
+               f->nupvalues * sizeof *f->upvalues);
+    }
     curState = curState->parent;
+#ifdef DEBUG_INFO
+    if (!parser.hadError) disassemble_function(f);
+    if (f->nupvalues) {
+        eprintf("Closes over:");
+        for (int i = 0; i < f->nupvalues; i++) {
+            eprintf(" %s$%d", f->upvalues[i].local ? "local" : "upvalue",
+                    f->upvalues[i].id);
+        }
+        eprintf("\n");
+    }
+#endif
     return f;
 }
 
@@ -267,11 +289,14 @@ void parse_function(ObjString* name, bool expr) {
     curState->f->name = name;
     curState->f->nargs = curState->nlocals - 1;
 
+    bool nil_ret;
+
     switch (parser.cur.type) {
         case TOKEN_LEFT_BRACE: {
             advance();
             enter_scope();
             parse_block();
+            nil_ret = true;
             break;
         }
         case TOKEN_ARROW: {
@@ -280,7 +305,8 @@ void parse_function(ObjString* name, bool expr) {
             EMIT(OP_RET);
             if (!expr) {
                 EXPECT(TOKEN_SEMICOLON)
-            };
+            }
+            nil_ret = false;
             break;
         }
         default:
@@ -288,9 +314,40 @@ void parse_function(ObjString* name, bool expr) {
             return;
     }
 
-    ObjFunction* func = compiler_end();
+    ObjFunction* func = compiler_end(nil_ret);
 
-    EMIT_CONST(OBJ_VAL(func));
+    if (func->nupvalues) {
+        u8 id = add_constant(&curState->f->chunk, OBJ_VAL(func));
+        EMIT2(OP_PUSH_CLOSURE, id);
+    } else {
+        EMIT_CONST(OBJ_VAL(func));
+    }
+}
+
+int resolve_local(Compiler* compiler, Token id_tok) {
+    for (int id = compiler->nlocals - 1; id >= 0; id--) {
+        if (IDENTS_EQUAL(compiler->locals[id].name, id_tok)) return id;
+    }
+    return -1;
+}
+
+int resolve_upvalue(Compiler* compiler, Token id_tok) {
+    if (!compiler->parent) return -1;
+    int id = resolve_local(compiler->parent, id_tok);
+    bool local = true;
+    if (id == -1) {
+        id = resolve_upvalue(compiler->parent, id_tok);
+        local = false;
+        if (id == -1) return -1;
+    }
+    for (int i = compiler->nupvalues - 1; i >= 0; i--) {
+        if (compiler->upvalues[i].id == id &&
+            compiler->upvalues[i].local == local)
+            return i;
+    }
+    compiler->upvalues[compiler->nupvalues].id = id;
+    compiler->upvalues[compiler->nupvalues].local = local;
+    return compiler->nupvalues++;
 }
 
 void parse_precedence(int prec) {
@@ -337,15 +394,20 @@ void parse_precedence(int prec) {
             break;
         case TOKEN_IDENTIFIER:
             advance();
+
             u8 push_op = OP_PUSH_LOCAL, pop_op = OP_POP_LOCAL;
-            int id;
-            for (id = curState->nlocals - 1; id >= 0; id--) {
-                if (IDENTS_EQUAL(curState->locals[id].name, parser.prev)) break;
-            }
+
+            int id = resolve_local(curState, parser.prev);
+
             if (id == -1) {
-                id = global_ref_id(parser.prev);
-                push_op = OP_PUSH_GLOBAL, pop_op = OP_POP_GLOBAL;
+                id = resolve_upvalue(curState, parser.prev);
+                push_op = OP_PUSH_UPVALUE, pop_op = OP_POP_UPVALUE;
+                if (id == -1) {
+                    id = global_ref_id(parser.prev);
+                    push_op = OP_PUSH_GLOBAL, pop_op = OP_POP_GLOBAL;
+                }
             }
+
             if (parser.cur.type == TOKEN_EQUAL && prec <= PREC_ASSN) {
                 advance();
                 PARSE_RHS_RA();
@@ -814,7 +876,7 @@ ObjFunction* compile(char* source) {
         if (parser.curError) synchronize();
     }
 
-    ObjFunction* toplevel = compiler_end();
+    ObjFunction* toplevel = compiler_end(true);
 
     return parser.hadError ? NULL : toplevel;
 }

@@ -1,4 +1,4 @@
-
+/*
 
 println("===== Test basics =============");
 
@@ -203,6 +203,8 @@ for (var i = 0; i < 20; i = i + 1) {
     println(fib(i));
 }
 
+
+
 println("------ Test nested functions -------");
 
 fun outer(a) {
@@ -211,6 +213,8 @@ fun outer(a) {
     }
     return inner(a);
 }
+
+
 
 println(outer(33));
 
@@ -240,6 +244,7 @@ println(rep(fun(a)->a+1,10,n));
 println(reploop(fun(n)->n*2,10,n+1));
 println(n);
 
+
 println("======== Test builtins =========");
 
 var start = clock();
@@ -254,8 +259,20 @@ var end = clock();
 
 println(end - start);
 
+*/
 
-/*
+println("========== Test closures ============");
+
+fun outer(a) {
+    var i=0;
+    fun closure() -> i = i + a;
+    for(var j=0;j<10;j=j+1) closure();
+    return i;
+}
+
+println(outer(10));
+
+println("----------- Test closing upvalues -------------");
 
 fun makeCounter() {
     var i = 0;
@@ -269,8 +286,10 @@ fun makeCounter() {
 
 
 var counter = makeCounter();
-counter(); // "1".
-counter(); // "2".
+counter();
+counter();
+
+println("----------- Test currying ------------");
 
 fun add(a) {
     fun add2(b) {
@@ -286,6 +305,40 @@ println(add(1234)(5555));
 
 var coolAdd = fun (a) -> fun (b) -> a + b;
 println(coolAdd (1234) (1234));
+
+var add3 = fun (a) -> fun (b) -> fun (c) -> a + b + c;
+var plus1 = add3 (1);
+var plus2 = plus1 (1);
+println(plus2(1));
+println(add3(1)(2)(3));
+
+println("----------- Test closure objects ----------");
+
+fun closurePoint(x,y) {
+    var x = x;
+    var y = y;
+    return fun(m) {
+        switch(m) {
+            case "getX":
+                return fun()->x;
+            case "getY":
+                return fun()->y;
+            case "add":
+                return fun(p) -> closurePoint(x+p("getX")(),y+p("getY")());
+        }
+    };
+}
+
+fun cPointString(p) -> "" + '(' + p("getX")() + ',' + p("getY")() + ')';
+
+var p1 = closurePoint(1,2);
+println("p1: "+cPointString(p1));
+var p2 = closurePoint(3,4);
+println("p2: "+cPointString(p2));
+println("p1+p2: "+cPointString(p1("add")(p2)));
+
+
+/*
 
 class Point {
     init(x,y) {

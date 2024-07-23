@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "object.h"
 #include "value.h"
 
 void chunk_init(Chunk* c) {
@@ -11,7 +12,7 @@ void chunk_init(Chunk* c) {
     Vec_init(c->constants);
     Vec_init(c->lines);
 
-    Vec_push(c->lines, -1);
+    c->linesStart = -1;
 }
 
 void chunk_free(Chunk* c) {
@@ -22,26 +23,32 @@ void chunk_free(Chunk* c) {
 
 void chunk_write(Chunk* c, u8 b, int line) {
     Vec_push(c->code, b);
-    if (line > c->lines.size - 1) {
-        int last_instr = c->lines.size == 0 ? 0 : c->lines.d[c->lines.size - 1];
-        int n = line - c->lines.size;
-        for (int i = 0; i < n; i++) {
-            Vec_push(c->lines, last_instr);
-        }
+    if (c->linesStart == -1) {
+        c->linesStart = line;
         Vec_push(c->lines, c->code.size - 1);
+    } else {
+        line -= c->linesStart;
+        if (line > c->lines.size - 1) {
+            int last_instr =
+                c->lines.size == 0 ? 0 : c->lines.d[c->lines.size - 1];
+            int n = line - c->lines.size;
+            for (int i = 0; i < n; i++) {
+                Vec_push(c->lines, last_instr);
+            }
+            Vec_push(c->lines, c->code.size - 1);
+        }
     }
 }
 
 int chunk_get_instr_line(Chunk* c, u8* pc) {
+    if (c->lines.size == 0) return c->linesStart;
     int off = pc - c->code.d;
     for (int i = 0; i < c->lines.size; i++) {
-        if (c->lines.d[i] > off && i > 0) {
-            int line = i - 1;
-            if (line < 1) line = 1;
-            return line;
+        if (c->lines.d[i] > off) {
+            return i + c->linesStart;
         }
     }
-    return 1;
+    return c->lines.size - 1 + c->linesStart;
 }
 
 void chunk_push_const(Chunk* c, Value v, int line) {
@@ -93,6 +100,25 @@ int disassemble_instr(Chunk* c, int off) {
             eprintf("pop local$");
             int ind = c->code.d[off++];
             eprintf("%d", ind);
+            break;
+        }
+        case OP_PUSH_UPVALUE: {
+            eprintf("push upvalue$");
+            int ind = c->code.d[off++];
+            eprintf("%d", ind);
+            break;
+        }
+        case OP_POP_UPVALUE: {
+            eprintf("pop upvalue$");
+            int ind = c->code.d[off++];
+            eprintf("%d", ind);
+            break;
+        }
+        case OP_PUSH_CLOSURE: {
+            eprintf("push <");
+            int const_ind = c->code.d[off++];
+            eprint_value(c->constants.d[const_ind]);
+            eprintf("> (@%d)", const_ind);
             break;
         }
         case OP_PUSH_CONST: {

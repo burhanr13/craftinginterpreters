@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "object.h"
+
 bool value_equal(Value a, Value b) {
     if (a.type != b.type) return false;
     switch (a.type) {
