@@ -43,9 +43,7 @@ void runtime_error(char* message, ...) {
     vfprintf(stderr, message, l);
     va_end(l);
     eprintf("\n");
-    CallFrame* p = vm.csp;
-    *p = f;
-    for (; p > vm.call_stack; p--) {
+    for (CallFrame* p = vm.csp; p > vm.call_stack; p--) {
         eprintf("    from call of %s at line %d\n",
                 p[0].func->name ? p[0].func->name->data : "<anonymous fn>",
                 chunk_get_instr_line(&p[-1].func->chunk, p[-1].ip - 1));
@@ -87,7 +85,10 @@ static inline void close_upvalues(Value* sp) {
 }
 
 int run(ObjFunction* toplevel) {
-    register Value* sp = vm.stack;
+    Value stack[STACK_SIZE];
+    vm.stack_base = stack;
+
+    register Value* sp = stack;
     register CallFrame* csp = vm.call_stack;
 
     register CallFrame cur;
@@ -385,21 +386,4 @@ int interpret(char* source) {
     }
 
     return run(toplevel);
-}
-
-int run_file(char* filename) {
-    FILE* fp = fopen(filename, "r");
-    if (!fp) return NO_FILE;
-    fseek(fp, 0, SEEK_END);
-    int len = ftell(fp);
-    char* program = malloc(len + 1);
-    program[len] = '\0';
-    fseek(fp, 0, SEEK_SET);
-    (void) !fread(program, 1, len, fp);
-    fclose(fp);
-
-    int code = interpret(program);
-
-    free(program);
-    return code;
 }

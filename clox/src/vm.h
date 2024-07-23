@@ -30,8 +30,8 @@ typedef struct {
 
     Value* sp;
     CallFrame* csp;
+    Value* stack_base;
     CallFrame call_stack[MAX_CALLS];
-    Value stack[STACK_SIZE];
 } VM;
 
 extern VM vm;
@@ -40,7 +40,5 @@ void VM_init();
 void VM_free();
 
 int interpret(char* source);
-
-int run_file(char* filename);
 
 #endif
