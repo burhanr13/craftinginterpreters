@@ -34,7 +34,9 @@ Token error_token(char* message) {
 }
 
 #define __KWD(kw, type)                                                        \
-    return strncmp(p, kw, sizeof kw - 1) ? TOKEN_IDENTIFIER : type
+    return p + sizeof kw - 1 == scanner.cur && !strncmp(p, kw, sizeof kw - 1)  \
+               ? type                                                          \
+               : TOKEN_IDENTIFIER
 
 TokenType identifierType() {
     char* p = scanner.start;
@@ -79,8 +81,6 @@ TokenType identifierType() {
             __KWD("il", TOKEN_NIL);
         case 'o':
             __KWD("r", TOKEN_OR);
-        case 'p':
-            __KWD("rint", TOKEN_PRINT);
         case 'r':
             __KWD("eturn", TOKEN_RETURN);
         case 's':
@@ -153,8 +153,6 @@ Token next_token() {
             return make_token(TOKEN_COMMA);
         case '.':
             return make_token(TOKEN_DOT);
-        case '-':
-            return make_token(TOKEN_MINUS);
         case '+':
             return make_token(TOKEN_PLUS);
         case '*':
@@ -165,6 +163,12 @@ Token next_token() {
             return make_token(TOKEN_QUESTION);
         case ':':
             return make_token(TOKEN_COLON);
+        case '-':
+            if (*scanner.cur++ == '>') {
+                return make_token(TOKEN_ARROW);
+            }
+            scanner.cur--;
+            return make_token(TOKEN_MINUS);
         case '!':
             if (*scanner.cur++ == '=') {
                 return make_token(TOKEN_NOT_EQUAL);

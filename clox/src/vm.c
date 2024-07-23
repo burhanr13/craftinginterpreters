@@ -6,18 +6,22 @@
 
 #include <math.h>
 
+#include "builtins.h"
 #include "chunk.h"
 #include "compiler.h"
-
-#define DEBUG_INFO
 
 VM vm;
 
 void VM_init() {
-    vm.sp = vm.stack;
+    vm.alloc_bytes = 0;
 
     table_init(&vm.strings);
     table_init(&vm.globals);
+
+    ADD_BUILTIN(clock);
+    ADD_BUILTIN(print);
+    ADD_BUILTIN(println);
+    ADD_BUILTIN(scanln);
 }
 
 void VM_free() {
@@ -27,18 +31,30 @@ void VM_free() {
 }
 
 void runtime_error(char* message, ...) {
-    printf("Error at line %d: ", chunk_get_instr_line(vm.chunk, vm.pc));
+    CallFrame f = *vm.cur_frame;
+    eprintf("Runtime error at line %d: ",
+            chunk_get_instr_line(&f.func->chunk, f.ip - 1));
     va_list l;
     va_start(l, message);
-    vprintf(message, l);
+    vfprintf(stderr, message, l);
     va_end(l);
-    printf("\n");
+    eprintf("\n");
+    CallFrame* p = *vm.cur_csp;
+    *p = f;
+    for (; p > vm.call_stack; p--) {
+        eprintf("from call of %s at line %d\n",
+                p[0].func->name ? p[0].func->name->data : "<anonymous fn>",
+                chunk_get_instr_line(&p[-1].func->chunk, p[-1].ip - 1));
+    }
 }
 
-#define PUSH(a) *vm.sp++ = a
-#define POP(a) a = *--vm.sp
+#define FETCH() *cur.ip++
+#define CONST(n) (cur.func->chunk.constants.d[n])
 
-#define GET_ID(id) (ObjString*) vm.chunk->constants.d[id].obj
+#define PUSH(a) *sp++ = a
+#define POP(a) a = *--sp
+
+#define GET_ID(id) (ObjString*) CONST(id).obj
 
 #define BINARY(op, res_val)                                                    \
     POP(Value b);                                                              \
@@ -53,18 +69,32 @@ bool truthy(Value v) {
     return !(v.type == VT_NIL || (v.type == VT_BOOL && !v.b));
 }
 
-int run() {
+int run(ObjFunction* toplevel) {
+
+    Value* sp = vm.stack;
+    CallFrame* csp = vm.call_stack;
+
+    PUSH(OBJ_VAL(toplevel));
+
+    CallFrame cur;
+    cur.fp = vm.stack;
+    cur.func = (ObjFunction*) cur.fp[0].obj;
+    cur.ip = cur.func->chunk.code.d;
+
+    vm.cur_frame = &cur;
+    vm.cur_sp = &sp;
+    vm.cur_csp = &csp;
+
     while (true) {
-        u8 instr = *vm.pc++;
-        switch (instr) {
+        switch (FETCH()) {
             case OP_DEF_GLOBAL: {
                 POP(Value v);
-                ObjString* id = GET_ID(*vm.pc++);
+                ObjString* id = GET_ID(FETCH());
                 table_set(&vm.globals, id, v);
                 break;
             }
             case OP_PUSH_GLOBAL: {
-                ObjString* id = GET_ID(*vm.pc++);
+                ObjString* id = GET_ID(FETCH());
                 Value v;
                 if (!table_get(&vm.globals, id, &v)) {
                     runtime_error("Undefined variable \"%s\".", id->data);
@@ -74,7 +104,7 @@ int run() {
                 break;
             }
             case OP_POP_GLOBAL: {
-                ObjString* id = GET_ID(*vm.pc++);
+                ObjString* id = GET_ID(FETCH());
                 POP(Value v);
                 if (table_set(&vm.globals, id, v)) {
                     table_delete(&vm.globals, id);
@@ -84,15 +114,15 @@ int run() {
                 break;
             }
             case OP_PUSH_LOCAL: {
-                PUSH(vm.stack[*vm.pc++]);
+                PUSH(cur.fp[FETCH()]);
                 break;
             }
             case OP_POP_LOCAL: {
-                POP(vm.stack[*vm.pc++]);
+                POP(cur.fp[FETCH()]);
                 break;
             }
             case OP_PUSH_CONST:
-                PUSH(vm.chunk->constants.d[*vm.pc++]);
+                PUSH(CONST(FETCH()));
                 break;
             case OP_PUSH_NIL:
                 PUSH(NIL_VAL);
@@ -104,13 +134,13 @@ int run() {
                 PUSH(BOOL_VAL(false));
                 break;
             case OP_PUSH:
-                vm.sp++;
+                sp++;
                 break;
             case OP_POP:
-                --vm.sp;
+                --sp;
                 break;
             case OP_POPN:
-                vm.sp -= *vm.pc++;
+                sp -= FETCH();
                 break;
             case OP_NEG: {
                 POP(Value a);
@@ -132,8 +162,11 @@ int run() {
                 if (a.type == VT_NUMBER && b.type == VT_NUMBER) {
                     PUSH(NUMBER_VAL(a.num + b.num));
                 } else if (isObjType(a, OT_STRING) && isObjType(b, OT_STRING)) {
-                    PUSH(OBJ_VAL((Obj*) concat_string((ObjString*) a.obj,
-                                                      (ObjString*) b.obj)));
+                    PUSH(OBJ_VAL(
+                        concat_string((ObjString*) a.obj, (ObjString*) b.obj)));
+                } else if (isObjType(a, OT_STRING)) {
+                    PUSH(OBJ_VAL(
+                        concat_string((ObjString*) a.obj, string_value(b))));
                 } else {
                     runtime_error("Operand must be a number or string.");
                     return RUNTIME_ERROR;
@@ -176,71 +209,94 @@ int run() {
                 BINARY(<, BOOL_VAL);
                 break;
             }
-            case OP_PRINT: {
-                POP(Value v);
-                print_value(v);
-                printf("\n");
-                break;
-            }
             case OP_JMP: {
-                int off = *vm.pc++;
-                off |= *vm.pc++ << 8;
+                int off = FETCH();
+                off |= FETCH() << 8;
                 off = off << 16 >> 16;
-                vm.pc += off;
+                cur.ip += off;
                 break;
             }
             case OP_JMP_TRUE: {
-                int off = *vm.pc++;
-                off |= *vm.pc++ << 8;
+                int off = FETCH();
+                off |= FETCH() << 8;
                 off = off << 16 >> 16;
                 POP(Value cond);
                 if (truthy(cond)) {
-                    vm.pc += off;
+                    cur.ip += off;
                 }
                 break;
             }
             case OP_JMP_FALSE: {
-                int off = *vm.pc++;
-                off |= *vm.pc++ << 8;
+                int off = FETCH();
+                off |= FETCH() << 8;
                 off = off << 16 >> 16;
                 POP(Value cond);
                 if (!truthy(cond)) {
-                    vm.pc += off;
+                    cur.ip += off;
                 }
                 break;
             }
-            case OP_RET:
-                return OK;
+            case OP_CALL: {
+                int nargs = FETCH();
+                Value v = sp[-(nargs + 1)];
+                switch (v.type) {
+                    case VT_OBJ:
+                        switch (v.obj->type) {
+                            case OT_FUNCTION: {
+                                ObjFunction* func = (ObjFunction*) v.obj;
+                                if (csp - vm.call_stack == MAX_CALLS) {
+                                    runtime_error("Max call depth exceeded.");
+                                    return RUNTIME_ERROR;
+                                }
+                                *csp++ = cur;
+                                cur.func = func;
+                                cur.fp = sp - nargs - 1;
+                                cur.ip = func->chunk.code.d;
+                                if (func->nargs != nargs) {
+                                    runtime_error("Invalid argument count, "
+                                                  "expected %d, got %d.",
+                                                  func->nargs, nargs);
+                                    return RUNTIME_ERROR;
+                                }
+                                break;
+                            }
+                            default:
+                                runtime_error("Value not callable.");
+                                return RUNTIME_ERROR;
+                        }
+                        break;
+                    case VT_BUILTIN:
+                        if (v.builtin(nargs, sp - nargs - 1) == RUNTIME_ERROR) {
+                            runtime_error("Error from builtin function.");
+                            return RUNTIME_ERROR;
+                        }
+                        sp -= nargs;
+                        break;
+                    default:
+                        runtime_error("Value not callable.");
+                        return RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_RET: {
+                if (csp == vm.call_stack) return OK;
+                POP(Value v);
+                sp = cur.fp;
+                cur = *--csp;
+                PUSH(v);
+                break;
+            }
         }
     }
 }
 
 int interpret(char* source) {
-    Chunk chunk;
-    chunk_init(&chunk);
 
-    int res = OK;
+    ObjFunction* toplevel = compile(source);
 
-    if (!compile(source, &chunk)) {
-        res = COMPILE_ERROR;
-        goto interpret_end;
+    if (!toplevel) {
+        return COMPILE_ERROR;
     }
 
-#ifdef DEBUG_INFO
-    disassemble_chunk(&chunk);
-#endif
-
-    vm.chunk = &chunk;
-    vm.pc = chunk.code.d;
-
-    res = run();
-
-interpret_end:
-    chunk_free(&chunk);
-
-#ifdef DEBUG_INFO
-    printf("Allocated bytes: %ld\n", alloc_bytes);
-#endif
-
-    return res;
+    return run(toplevel);
 }

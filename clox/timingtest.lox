@@ -1,0 +1,9 @@
+var start = clock();
+
+fun fib(n) -> n < 2 ? n : fib(n-1)+fib(n-2);
+
+var sum = 0;
+for(var i=0;i<35;i=i+1) sum = sum + fib(i);
+println(sum);
+
+println("Time: " + (clock() - start));

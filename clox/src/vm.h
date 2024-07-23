@@ -5,21 +5,30 @@
 #include "table.h"
 #include "value.h"
 
-#define STACK_SIZE 256
+#define MAX_LOCALS 256
+#define MAX_CALLS 64
+
+#define STACK_SIZE (MAX_CALLS * MAX_LOCALS)
 
 enum { OK, COMPILE_ERROR, RUNTIME_ERROR };
 
 typedef struct {
-    Chunk* chunk;
-    u8* pc;
+    ObjFunction* func;
+    Value* fp;
+    u8* ip;
+} CallFrame;
 
+typedef struct {
     Obj* objs;
-
     Table strings;
-
     Table globals;
 
-    Value* sp;
+    size_t alloc_bytes;
+
+    CallFrame* cur_frame;
+    Value** cur_sp;
+    CallFrame** cur_csp;
+    CallFrame call_stack[MAX_CALLS];
     Value stack[STACK_SIZE];
 } VM;
 

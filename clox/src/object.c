@@ -4,40 +4,52 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "chunk.h"
 #include "table.h"
 #include "vm.h"
-
-size_t alloc_bytes = 0;
 
 bool obj_equal(Obj* a, Obj* b) {
     return a == b;
 }
 
-void print_obj(Obj* obj) {
+void fprint_obj(FILE* file, Obj* obj) {
+#define printf(...) fprintf(file, __VA_ARGS__)
     switch (obj->type) {
         case OT_STRING:
             printf("%s", ((ObjString*) obj)->data);
             break;
+        case OT_FUNCTION:
+            if (((ObjFunction*) obj)->name)
+                printf("<fn %s>", ((ObjFunction*) obj)->name->data);
+            else printf("<anonymous fn>");
+            break;
     }
+#undef printf
 }
 
 Obj* alloc_obj(ObjType t, size_t size) {
     Obj* o = malloc(size);
-    alloc_bytes += size;
+    vm.alloc_bytes += size;
     o->type = t;
-    o->size = size;
     o->next = vm.objs;
     vm.objs = o;
     return o;
 }
 
 void free_obj(Obj* o) {
+    size_t size = 0;
     switch (o->type) {
+        case OT_STRING:
+            size = sizeof(ObjString) + ((ObjString*) o)->len + 1;
+            break;
+        case OT_FUNCTION:
+            chunk_free(&((ObjFunction*) o)->chunk);
+            break;
         default:
             break;
     }
-    alloc_bytes -= o->size;
     free(o);
+    vm.alloc_bytes -= size;
 }
 
 void free_all_obj() {
@@ -95,4 +107,21 @@ ObjString* concat_string(ObjString* a, ObjString* b) {
         table_set(&vm.strings, c, NIL_VAL);
         return c;
     }
+}
+
+ObjFunction* create_function() {
+    ObjFunction* func =
+        (ObjFunction*) alloc_obj(OT_FUNCTION, sizeof(ObjFunction));
+    func->name = NULL;
+    func->nargs = 0;
+    chunk_init(&func->chunk);
+    return func;
+}
+
+void disassemble_function(ObjFunction* func) {
+    eprintf("===== begin %s =====\n",
+            func->name ? func->name->data : "<anonymous fn>");
+    disassemble_chunk(&func->chunk);
+    eprintf("===== end %s =====\n",
+            func->name ? func->name->data : "<anonymous fn>");
 }

@@ -9,11 +9,15 @@
 #include "scanner.h"
 #include "table.h"
 #include "value.h"
+#include "vm.h"
+
+#define MAX_GLOBAL_REFS 256
 
 enum {
     PREC_0,
     PREC_NONE,
     PREC_COMMA,
+    PREC_FUN,
     PREC_ASSN,
     PREC_COND,
     PREC_OR,
@@ -23,6 +27,8 @@ enum {
     PREC_SUM,
     PREC_PROD,
     PREC_UNARY,
+    PREC_CALL,
+    PREC_PRIMARY,
 
     PREC_MAX
 };
@@ -45,6 +51,8 @@ int infix_prec[TOKEN_MAX] = {
     [TOKEN_STAR] = PREC_PROD,
     [TOKEN_SLASH] = PREC_PROD,
     [TOKEN_PERCENT] = PREC_PROD,
+    [TOKEN_LEFT_PAREN] = PREC_CALL,
+    [TOKEN_DOT] = PREC_CALL,
 };
 
 struct {
@@ -55,16 +63,19 @@ struct {
     bool curError;
 } parser;
 
-typedef struct {
+typedef struct _Compiler {
+    ObjFunction* f;
+    struct _Compiler* parent;
+
     struct {
         Token tok;
         u8 id;
-    } globalRefs[256];
+    } globalRefs[MAX_GLOBAL_REFS];
     int nglobalrefs;
     struct {
         Token name;
         int depth;
-    } locals[256];
+    } locals[MAX_LOCALS];
     int nlocals;
 
     int depth;
@@ -76,17 +87,35 @@ typedef struct {
 } Compiler;
 
 Compiler* curState;
-Chunk* curChunk;
+
+#define EMIT(b) chunk_write(&curState->f->chunk, b, parser.prev.line)
+#define EMIT2(b1, b2) (EMIT(b1), EMIT(b2))
+#define EMIT_CONST(v) chunk_push_const(&curState->f->chunk, v, parser.prev.line)
 
 void compiler_init(Compiler* c) {
+    c->f = create_function();
+    c->parent = curState;
     c->nglobalrefs = 0;
-    c->nlocals = 0;
-    c->depth = 0;
+    c->locals[0].name.start = "";
+    c->locals[0].name.len = 0;
+    c->locals[0].depth = -1;
+    c->nlocals = 1;
+    c->depth = curState ? curState->depth : 0;
     c->continueDepth = -1;
     c->breakDepth = -1;
+    curState = c;
 }
 
-void compiler_free(Compiler* c) {}
+ObjFunction* compiler_end() {
+    EMIT(OP_PUSH_NIL);
+    EMIT(OP_RET);
+#ifdef DEBUG_INFO
+    if (!parser.hadError) disassemble_function(curState->f);
+#endif
+    ObjFunction* f = curState->f;
+    curState = curState->parent;
+    return f;
+}
 
 void parse_error(char* message) {
     parser.hadError = true;
@@ -118,10 +147,6 @@ void advance() {
 
 void parse_expr();
 
-#define EMIT(b) chunk_write(curChunk, b, parser.prev.line)
-#define EMIT2(b1, b2) (EMIT(b1), EMIT(b2))
-#define EMIT_CONST(v) chunk_push_const(curChunk, v, parser.prev.line)
-
 #define IDENTS_EQUAL(a, b) (a.len == b.len && !memcmp(a.start, b.start, a.len))
 
 u8 global_ref_id(Token tok) {
@@ -130,8 +155,8 @@ u8 global_ref_id(Token tok) {
             return curState->globalRefs[i].id;
         }
     }
-    u8 id = add_constant(curChunk,
-                         OBJ_VAL((Obj*) create_string(tok.start, tok.len)));
+    u8 id = add_constant(&curState->f->chunk,
+                         OBJ_VAL(create_string(tok.start, tok.len)));
     curState->globalRefs[curState->nglobalrefs].tok = tok;
     curState->globalRefs[curState->nglobalrefs].id = id;
     curState->nglobalrefs++;
@@ -147,23 +172,126 @@ u8 global_ref_id(Token tok) {
 #define PARSE_RHS_LA() parse_precedence(infix_prec[parser.prev.type] + 1)
 #define PARSE_RHS_RA() parse_precedence(infix_prec[parser.prev.type])
 
+#define CUR_POS (curState->f->chunk.code.size)
+
 int emit_jmp(u8 opcode) {
-    int instr = curChunk->code.size;
+    int instr = CUR_POS;
     EMIT(opcode);
     EMIT2(0, 0);
     return instr;
 }
 
 void patch_jmp(int instr) {
-    int off = curChunk->code.size - (instr + 3);
-    curChunk->code.d[instr + 1] = off & 0xff;
-    curChunk->code.d[instr + 2] = (off >> 8) & 0xff;
+    int off = CUR_POS - (instr + 3);
+    curState->f->chunk.code.d[instr + 1] = off & 0xff;
+    curState->f->chunk.code.d[instr + 2] = (off >> 8) & 0xff;
 }
 
 void emit_jmp_back(u8 opcode, int dest) {
-    int off = dest - (curChunk->code.size + 3);
+    int off = dest - (CUR_POS + 3);
     EMIT(opcode);
     EMIT2(off & 0xff, (off >> 8) & 0xff);
+}
+
+void parse_decl_or_stmt();
+
+void enter_scope() {
+    curState->depth++;
+}
+
+int pop_to_depth(int d) {
+    int npop = curState->nlocals;
+    for (int i = curState->nlocals - 1; i >= 0; i--) {
+        if (curState->locals[i].depth <= d) {
+            npop = curState->nlocals - i - 1;
+            break;
+        }
+    }
+    if (npop == 1) EMIT(OP_POP);
+    else if (npop > 1) EMIT2(OP_POPN, npop);
+    return npop;
+}
+
+void leave_scope() {
+    curState->depth--;
+    curState->nlocals -= pop_to_depth(curState->depth);
+}
+
+void synchronize() {
+    advance();
+    while (parser.cur.type != TOKEN_EOF &&
+           parser.cur.type != TOKEN_LEFT_BRACE &&
+           parser.cur.type != TOKEN_RIGHT_BRACE &&
+           parser.prev.type != TOKEN_SEMICOLON)
+        advance();
+    parser.curError = false;
+}
+
+void parse_block() {
+    while (parser.cur.type != TOKEN_EOF &&
+           parser.cur.type != TOKEN_RIGHT_BRACE) {
+        parse_decl_or_stmt();
+        if (parser.curError) synchronize();
+    }
+    EXPECT(TOKEN_RIGHT_BRACE);
+}
+
+void define_var(Token id_tok) {
+    if (curState->depth == 0) {
+        u8 id = global_ref_id(id_tok);
+        EMIT2(OP_DEF_GLOBAL, id);
+    } else {
+        curState->locals[curState->nlocals].name = id_tok;
+        curState->locals[curState->nlocals].depth = curState->depth;
+        curState->nlocals++;
+    }
+}
+
+void parse_precedence(int prec);
+
+void parse_function(ObjString* name, bool expr) {
+    Compiler compiler;
+    compiler_init(&compiler);
+
+    enter_scope();
+    EXPECT(TOKEN_LEFT_PAREN);
+    while (parser.cur.type != TOKEN_EOF &&
+           parser.cur.type != TOKEN_RIGHT_PAREN) {
+        EXPECT(TOKEN_IDENTIFIER);
+        define_var(parser.prev);
+        if (parser.cur.type != TOKEN_RIGHT_PAREN) {
+            EXPECT(TOKEN_COMMA);
+        }
+    }
+    EXPECT(TOKEN_RIGHT_PAREN);
+
+    curState->f->name = name;
+    curState->f->nargs = curState->nlocals - 1;
+
+    switch (parser.cur.type) {
+        case TOKEN_LEFT_BRACE: {
+            advance();
+            enter_scope();
+            parse_block();
+            break;
+        }
+        case TOKEN_ARROW: {
+            advance();
+            parse_precedence(PREC_ASSN);
+            EMIT(OP_RET);
+            if (!expr) {
+                EXPECT(TOKEN_SEMICOLON)
+            };
+            break;
+        }
+        default:
+            parse_error("Expected block or arrow function.");
+            return;
+    }
+
+    ObjFunction* func = compiler_end();
+
+    EMIT_CONST(OBJ_VAL(func));
 }
 
 void parse_precedence(int prec) {
@@ -201,8 +329,8 @@ void parse_precedence(int prec) {
             break;
         case TOKEN_STRING:
             advance();
-            EMIT_CONST(OBJ_VAL((Obj*) create_string(parser.prev.start + 1,
-                                                    parser.prev.len - 2)));
+            EMIT_CONST(OBJ_VAL(
+                create_string(parser.prev.start + 1, parser.prev.len - 2)));
             break;
         case TOKEN_IDENTIFIER:
             advance();
@@ -224,6 +352,12 @@ void parse_precedence(int prec) {
                 EMIT2(push_op, id);
             }
             break;
+        case TOKEN_FUN: {
+            advance();
+
+            parse_function(NULL, true);
+            break;
+        }
         default:
             parse_error("Unexpected token.");
             return;
@@ -325,6 +459,23 @@ void parse_precedence(int prec) {
                 PARSE_RHS_LA();
                 EMIT(OP_MOD);
                 break;
+            case TOKEN_LEFT_PAREN: {
+                advance();
+                int nargs = 0;
+                while (parser.cur.type != TOKEN_EOF &&
+                       parser.cur.type != TOKEN_RIGHT_PAREN) {
+                    parse_precedence(PREC_ASSN);
+                    nargs++;
+                    if (parser.cur.type != TOKEN_RIGHT_PAREN) {
+                        EXPECT(TOKEN_COMMA);
+                    }
+                }
+                EXPECT(TOKEN_RIGHT_PAREN);
+                EMIT2(OP_CALL, nargs);
+                break;
+            }
+            case TOKEN_DOT:
+                break;
             default:
                 break;
         }
@@ -335,57 +486,13 @@ void parse_expr() {
     parse_precedence(PREC_NONE);
 }
 
-void enter_scope() {
-    curState->depth++;
-}
-
-int pop_to_depth(int d) {
-    int npop = curState->nlocals;
-    for (int i = curState->nlocals - 1; i >= 0; i--) {
-        if (curState->locals[i].depth <= d) {
-            npop = curState->nlocals - i - 1;
-            break;
-        }
-    }
-    if (npop == 1) EMIT(OP_POP);
-    else if (npop > 1) EMIT2(OP_POPN, npop);
-    return npop;
-}
-
-void leave_scope() {
-    curState->depth--;
-    curState->nlocals -= pop_to_depth(curState->depth);
-}
-
-void synchronize() {
-    advance();
-    while (parser.cur.type != TOKEN_EOF &&
-           parser.cur.type != TOKEN_LEFT_BRACE &&
-           parser.prev.type != TOKEN_SEMICOLON)
-        advance();
-    parser.curError = false;
-}
-
-void parse_decl_or_stmt();
-
 void parse_stmt() {
     switch (parser.cur.type) {
         case TOKEN_LEFT_BRACE:
             advance();
             enter_scope();
-            while (parser.cur.type != TOKEN_EOF &&
-                   parser.cur.type != TOKEN_RIGHT_BRACE) {
-                parse_decl_or_stmt();
-                if (parser.curError) synchronize();
-            }
+            parse_block();
             leave_scope();
-            EXPECT(TOKEN_RIGHT_BRACE);
-            break;
-        case TOKEN_PRINT:
-            advance();
-            parse_expr();
-            EXPECT(TOKEN_SEMICOLON);
-            EMIT(OP_PRINT);
             break;
         case TOKEN_IF: {
             advance();
@@ -408,7 +515,7 @@ void parse_stmt() {
         case TOKEN_WHILE: {
             advance();
 
-            int loopdest = curChunk->code.size;
+            int loopdest = CUR_POS;
 
             int oldContinueDest = curState->continueDest;
             int oldContinueDepth = curState->continueDepth;
@@ -450,7 +557,7 @@ void parse_stmt() {
             EXPECT(TOKEN_LEFT_PAREN);
             parse_decl_or_stmt();
 
-            int loopdest = curChunk->code.size;
+            int loopdest = CUR_POS;
 
             if (parser.cur.type == TOKEN_SEMICOLON) {
                 advance();
@@ -463,7 +570,7 @@ void parse_stmt() {
             int jmpbreak = emit_jmp(OP_JMP_FALSE);
             int jmpbody = emit_jmp(OP_JMP);
 
-            int assndest = curChunk->code.size;
+            int assndest = CUR_POS;
             int oldContinueDest = curState->continueDest;
             int oldContinueDepth = curState->continueDepth;
             curState->continueDest = assndest;
@@ -505,7 +612,7 @@ void parse_stmt() {
         case TOKEN_DO: {
             advance();
 
-            int loopdest = curChunk->code.size;
+            int loopdest = CUR_POS;
 
             Vector(int) oldBreakSrcs;
             Vec_copy(oldBreakSrcs, curState->breakSrcs);
@@ -611,6 +718,7 @@ void parse_stmt() {
                 return;
             }
             advance();
+            EXPECT(TOKEN_SEMICOLON);
             pop_to_depth(curState->breakDepth);
             Vec_push(curState->breakSrcs, emit_jmp(OP_JMP));
             break;
@@ -620,8 +728,22 @@ void parse_stmt() {
                 return;
             }
             advance();
+            EXPECT(TOKEN_SEMICOLON);
             pop_to_depth(curState->continueDepth);
             emit_jmp_back(OP_JMP, curState->continueDest);
+            break;
+        case TOKEN_RETURN:
+            advance();
+            switch (parser.cur.type) {
+                case TOKEN_SEMICOLON:
+                    advance();
+                    EMIT(OP_PUSH_NIL);
+                    break;
+                default:
+                    parse_expr();
+                    EXPECT(TOKEN_SEMICOLON);
+            }
+            EMIT(OP_RET);
             break;
         case TOKEN_SEMICOLON:
             advance();
@@ -636,7 +758,7 @@ void parse_stmt() {
 
 void parse_decl_or_stmt() {
     switch (parser.cur.type) {
-        case TOKEN_VAR:
+        case TOKEN_VAR: {
             advance();
             EXPECT(TOKEN_IDENTIFIER);
             Token id_tok = parser.prev;
@@ -653,30 +775,34 @@ void parse_decl_or_stmt() {
                 default:
                     parse_error("Expected initializer or semicolon.");
             }
-            if (curState->depth == 0) {
-                u8 id = global_ref_id(id_tok);
-                EMIT2(OP_DEF_GLOBAL, id);
-            } else {
-                curState->locals[curState->nlocals].name = id_tok;
-                curState->locals[curState->nlocals].depth = curState->depth;
-                curState->nlocals++;
-            }
+            define_var(id_tok);
             break;
+        }
+        case TOKEN_FUN: {
+            advance();
+            EXPECT(TOKEN_IDENTIFIER);
+            Token id_tok = parser.prev;
+
+            parse_function(create_string(id_tok.start, id_tok.len), false);
+            define_var(id_tok);
+
+            break;
+        }
         default:
             parse_stmt();
     }
 }
 
-bool compile(char* source, Chunk* chunk) {
+ObjFunction* compile(char* source) {
+
     init_scanner(source);
+    curState = NULL;
     Compiler compiler;
     compiler_init(&compiler);
+    curState->f->name = CREATE_STRING_LITERAL("script");
 
     parser.hadError = false;
     parser.curError = false;
-
-    curChunk = chunk;
-    curState = &compiler;
 
     advance();
 
@@ -685,9 +811,7 @@ bool compile(char* source, Chunk* chunk) {
         if (parser.curError) synchronize();
     }
 
-    EMIT(OP_RET);
+    ObjFunction* toplevel = compiler_end();
 
-    compiler_free(&compiler);
-
-    return !parser.hadError;
+    return parser.hadError ? NULL : toplevel;
 }

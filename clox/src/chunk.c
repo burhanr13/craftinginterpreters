@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "value.h"
+
 void chunk_init(Chunk* c) {
     Vec_init(c->code);
     Vec_init(c->constants);
@@ -55,104 +57,108 @@ int add_constant(Chunk* c, Value v) {
 int disassemble_instr(Chunk* c, int off) {
     switch (c->code.d[off++]) {
         case OP_NOP:
-            printf("nop");
+            eprintf("nop");
             break;
         case OP_DEF_GLOBAL: {
-            printf("def ");
+            eprintf("def ");
             int const_ind = c->code.d[off++];
-            printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
+            eprintf("%s (@%d)",
+                    ((ObjString*) c->constants.d[const_ind].obj)->data,
+                    const_ind);
             break;
         }
         case OP_PUSH_GLOBAL: {
-            printf("push ");
+            eprintf("push ");
             int const_ind = c->code.d[off++];
-            printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
+            eprintf("%s (@%d)",
+                    ((ObjString*) c->constants.d[const_ind].obj)->data,
+                    const_ind);
             break;
         }
         case OP_POP_GLOBAL: {
-            printf("pop ");
+            eprintf("pop ");
             int const_ind = c->code.d[off++];
-            printf("%s", ((ObjString*) c->constants.d[const_ind].obj)->data);
+            eprintf("%s (@%d)",
+                    ((ObjString*) c->constants.d[const_ind].obj)->data,
+                    const_ind);
             break;
         }
         case OP_PUSH_LOCAL: {
-            printf("push local$");
+            eprintf("push local$");
             int ind = c->code.d[off++];
-            printf("%d", ind);
+            eprintf("%d", ind);
             break;
         }
         case OP_POP_LOCAL: {
-            printf("pop local$");
+            eprintf("pop local$");
             int ind = c->code.d[off++];
-            printf("%d", ind);
+            eprintf("%d", ind);
             break;
         }
         case OP_PUSH_CONST: {
-            printf("push ");
+            eprintf("push ");
             int const_ind = c->code.d[off++];
             bool isStr = isObjType(c->constants.d[const_ind], OT_STRING);
-            if (isStr) printf("\"");
-            print_value(c->constants.d[const_ind]);
-            if (isStr) printf("\"");
+            if (isStr) eprintf("\"");
+            eprint_value(c->constants.d[const_ind]);
+            if (isStr) eprintf("\"");
+            eprintf(" (@%d)", const_ind);
             break;
         }
         case OP_PUSH_NIL:
-            printf("push nil");
+            eprintf("push nil");
             break;
         case OP_PUSH_TRUE:
-            printf("push true");
+            eprintf("push true");
             break;
         case OP_PUSH_FALSE:
-            printf("push false");
+            eprintf("push false");
             break;
         case OP_PUSH:
-            printf("push");
+            eprintf("push");
             break;
         case OP_POP:
-            printf("pop");
+            eprintf("pop");
             break;
         case OP_POPN:
-            printf("pop %dx", c->code.d[off++]);
+            eprintf("pop %dx", c->code.d[off++]);
             break;
         case OP_NEG:
-            printf("neg");
+            eprintf("neg");
             break;
         case OP_ADD:
-            printf("add");
+            eprintf("add");
             break;
         case OP_SUB:
-            printf("sub");
+            eprintf("sub");
             break;
         case OP_MUL:
-            printf("mul");
+            eprintf("mul");
             break;
         case OP_DIV:
-            printf("div");
+            eprintf("div");
             break;
         case OP_MOD:
-            printf("mod");
+            eprintf("mod");
             break;
         case OP_NOT:
-            printf("not");
+            eprintf("not");
             break;
         case OP_TEQ:
-            printf("teq");
+            eprintf("teq");
             break;
         case OP_TGT:
-            printf("tgt");
+            eprintf("tgt");
             break;
         case OP_TLT:
-            printf("tlt");
-            break;
-        case OP_PRINT:
-            printf("print");
+            eprintf("tlt");
             break;
         case OP_JMP: {
             int dst = c->code.d[off++];
             dst |= c->code.d[off++] << 8;
             dst = dst << 16 >> 16;
             dst += off;
-            printf("jmp %04x", dst);
+            eprintf("jmp %04x", dst);
             break;
         }
         case OP_JMP_TRUE: {
@@ -160,7 +166,7 @@ int disassemble_instr(Chunk* c, int off) {
             dst |= c->code.d[off++] << 8;
             dst = dst << 16 >> 16;
             dst += off;
-            printf("jmp,true %04x", dst);
+            eprintf("jmp,true %04x", dst);
             break;
         }
         case OP_JMP_FALSE: {
@@ -168,25 +174,27 @@ int disassemble_instr(Chunk* c, int off) {
             dst |= c->code.d[off++] << 8;
             dst = dst << 16 >> 16;
             dst += off;
-            printf("jmp,false %04x", dst);
+            eprintf("jmp,false %04x", dst);
             break;
         }
+        case OP_CALL:
+            eprintf("call (%d)", c->code.d[off++]);
+            break;
         case OP_RET:
-            printf("ret");
+            eprintf("ret");
             break;
         default:
-            printf("unknown");
+            eprintf("unknown");
             break;
     }
     return off;
 }
 
 void disassemble_chunk(Chunk* c) {
-    printf("==== Chunk ====\n");
     int off = 0;
     while (off < c->code.size) {
-        printf("%04x: ", off);
+        eprintf("%04x: ", off);
         off = disassemble_instr(c, off);
-        printf("\n");
+        eprintf("\n");
     }
 }

@@ -2,8 +2,9 @@
 #define COMPILER_H
 
 #include "chunk.h"
+#include "object.h"
 #include "types.h"
 
-bool compile(char* source, Chunk* chunk);
+ObjFunction* compile(char* source);
 
 #endif

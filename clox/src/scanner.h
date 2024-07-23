@@ -26,6 +26,7 @@ typedef enum {
     TOKEN_GREATER_EQUAL,
     TOKEN_LESS,
     TOKEN_LESS_EQUAL,
+    TOKEN_ARROW,
     // Literals.
     TOKEN_IDENTIFIER,
     TOKEN_STRING,
@@ -45,7 +46,6 @@ typedef enum {
     TOKEN_IF,
     TOKEN_NIL,
     TOKEN_OR,
-    TOKEN_PRINT,
     TOKEN_RETURN,
     TOKEN_SUPER,
     TOKEN_SWITCH,

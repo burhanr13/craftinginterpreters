@@ -2,7 +2,6 @@
 #define CHUNK_H
 
 #include "types.h"
-#include "value.h"
 
 enum {
     OP_NOP,
@@ -28,14 +27,16 @@ enum {
     OP_TEQ,
     OP_TGT,
     OP_TLT,
-    OP_PRINT,
     OP_JMP,
     OP_JMP_TRUE,
     OP_JMP_FALSE,
+    OP_CALL,
     OP_RET,
 };
 
-typedef struct {
+typedef struct _Value Value;
+
+typedef struct _Chunk {
     Vector(u8) code;
 
     Vector(Value) constants;

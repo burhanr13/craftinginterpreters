@@ -281,7 +281,7 @@ public class Parser {
             case Token.Type.FALSE -> {
                 return new Expr.Value(false);
             }
-            case NIL -> {
+            case Token.Type.NIL -> {
                 return new Expr.Value(null);
             }
             case Token.Type.IDENTIFIER -> {
@@ -564,16 +564,24 @@ public class Parser {
         }
         Token id = top();
         var params = parseParams();
-        if (next().type() != Token.Type.LEFT_BRACE) {
-            parseError("Expected opening brace.");
-            return null;
+        Stmt s;
+        switch (next().type()) {
+            case Token.Type.LEFT_BRACE -> {
+                funDepth++;
+                loopStk.add(loopDepth);
+                loopDepth = 0;
+                s = parseBlockStmt();
+                loopDepth = loopStk.removeLast();
+                funDepth--;
+            }
+            case Token.Type.ARROW -> {
+                s = new Stmt.Jump(new Token(Token.Type.RETURN, "", null, top().line()), parseAssignExpr());
+            }
+            default -> {
+                parseError("Expected open brace or arrow for function.");
+                return null;
+            }
         }
-        funDepth++;
-        loopStk.add(loopDepth);
-        loopDepth = 0;
-        var s = parseBlockStmt();
-        loopDepth = loopStk.removeLast();
-        funDepth--;
         return new Stmt.FunDecl(id, params, s);
     }
 

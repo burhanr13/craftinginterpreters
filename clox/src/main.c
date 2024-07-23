@@ -42,7 +42,7 @@ void run_file(char* filename) {
     char* program = malloc(len + 1);
     program[len - 1] = '\0';
     fseek(fp, 0, SEEK_SET);
-    fread(program, 1, len, fp);
+    (void)! fread(program, 1, len, fp);
     fclose(fp);
 
     interpret(program);

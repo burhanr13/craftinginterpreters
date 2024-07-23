@@ -1,78 +1,60 @@
 
-/*
-fun aaaa() {
-    print 1;
-    var a =49;
-    for(var i=0;i<10;i=i+1) print "aaaaaaaaaa";
-    var p = 0;
-    while(true) {
-        p = p+1;
-        if (p==100) break;
-        if (p<99) continue;
-        print p;
-    }
-    print a;
-    
-    return a;
-}
-print aaaa();
-*/
 
-print "===== Test basics =============";
+println("===== Test basics =============");
 
-print "Hello World";
+println("Hello World");
 
 var a = 6;
-print a*6;
+println(a*6);
 var b = 6000;
 
 // aaaaaaaa
 // comment
 
-print "======= Test Scope ================";
+println("======= Test Scope ================");
 
 {
     var a = 5;
     var c = 2;
-    print a;
-    print c;
+    println(a);
+    println(c);
     var d = 888;
     {
         var a = 3;
-        print a;
-        print b;
+        println(a);
+        println(b);
         var c = 2;
-        print c;
-        print d;
+        println(c);
+        println(d);
     }
-    print a;
-    print b;
-    print c;
-    print d;
+    println(a);
+    println(b);
+    println(c);
+    println(d);
 }
-print a;
-print b;
+println(a);
+println(b);
 
 var a = 1;
 {
     var a = 2 + a;
-    print a;
+    println(a);
 }
 
-print "============ Test control flow ============";
+println("============ Test control flow ============");
 
-print "------- Test fizz buzz and string concatenation -----------";
+println("------- Test fizz buzz and string concatenation -----------");
 var s = "";
 var i = 0;
 while (i < 40) {
     if (i % 3 == 0 and i % 5 == 0) {
-        print "FizzBuzz";
+        println("FizzBuzz");
     } else if (i % 3 == 0) {
-        print "Fizz";
+        println("Fizz");
     } else if (i % 5 == 0) {
-        print "Buzz";
+        println("Buzz");
     } else {
-        print i;
+        println(i);
     }
     i = i + 1;
     if (i % 2 == 0) {
@@ -83,34 +65,34 @@ while (i < 40) {
     }
 }
 
-print s;
+println(s);
 
-print "------------ Test loops and math ----------------";
+println("------------ Test loops and math ----------------");
 for (var i = 0; i < 50; i = i + 1) { // another comment
-    print i;
+    println(i);
     if (i * 2 >= 54) {
-        print (5*i/2);
+        println((5*i/2));
     }
 }
 
-print "--------- Test loops without body ------------";
+println("--------- Test loops without body ------------");
 
 var d=0;
 while((d=d+1) < 10);
-print d;
+println(d);
 
-print "------------ Test fibonacci with loops ------------";
+println("------------ Test fibonacci with loops ------------");
 
 var a = 0;
 var temp;
 
 for (var b = 1; a < 500; b = temp + b) {
-    print a;
+    println(a);
     temp = a;
     a = b;
 }
 
-print "======== Test break/continue ============";
+println("======== Test break/continue ============");
 
 var i=1;
 while (true) {
@@ -118,51 +100,147 @@ while (true) {
         i = i+4;
         continue;
     }
-    print i;
+    println(i);
     for(var j=i;j>=0;j=j-1) {
         if(j%3==0) {
             j = j/ 3;
             continue;
         }
-        print j;
+        println(j);
     }
     if(i>100) break;
     i = i+1;
 }
 
-print "========= Test switch case ============";
+println("========= Test switch case ============");
 
 for(var i=0;i<15;i=i+1) {
     switch(i) {
         case 1:
-            print "one";
+            println("one");
         case 2:
         case 3:
-            print "small number";
+            println("small number");
             break;
         case 4:
-            print "four";
+            println("four");
             break;
         case 5:
-            print "five";
+            println("five");
             break;
         case 6:
-            print "six";
+            println("six");
             break;
         case 10:
-            print "ten";
+            println("ten");
             break;
         default:
-            print "something else";
+            println("something else");
     }
 }
 
-/*
+
+println("========= Test functions ============");
+
+fun aaaa() {
+    println(1);
+    var a =49;
+    for(var i=0;i<10;i=i+1) println("aaaaaaaaaa");
+    var p = 0;
+    while(true) {
+        p = p+1;
+        if (p==100) break;
+        if (p<99) continue;
+        println(p);
+    }
+    println(a);
+    
+    return a;
+}
+println(aaaa());
+
+fun printStuff() {
+    var x=false;
+    return x;
+    for(var i=0;i<10;i=i+1){
+        println("a");
+    }
+    return x;
+}
+println(printStuff());
+
+println("--------- Test args ---------");
+
+
 var s = "";
 
 fun doit(a, b) {
     s = s+ " "+(a*a*a*b*b*b);
 }
+
+for (var i=0;i<10;i=i+1) {
+    doit(i,i+1);
+}
+println(s);
+
+println("---------- Test recursion ----------");
+
+fun count(n) {
+    if (n > 1) count(n - 1);
+    println(n);
+}
+
+count(3);
+
+println("--------- Test fibonacci with recursion ------------");
+
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+    println(fib(i));
+}
+
+println("------ Test nested functions -------");
+
+fun outer(a) {
+    fun inner(b) {
+        return b*b;
+    }
+    return inner(a);
+}
+
+println(outer(33));
+
+println("-------- Test higher order and lambda -----------");
+
+fun thrice(fn) {
+    for (var i = 1; i <= 3; i = i + 1) {
+        fn(i);
+    }
+}
+
+thrice(fun (a) {
+    println(a);
+});
+
+fun rep(fn, n, a) -> n == 0 ? a : rep(fn, n-1, fn(a));
+
+fun reploop(fn,n,a) {
+    for(var i=0;i<n;i=i+1) {
+        a = fn(a);
+    }
+    return a;
+}
+
+var n = 0;
+println(rep(fun(a)->a+1,10,n));
+println(reploop(fun(n)->n*2,10,n+1));
+println(n);
+
+println("======== Test builtins =========");
 
 var start = clock();
 
@@ -174,31 +252,16 @@ for(var i=0;i<10;i=i+1) {
 
 var end = clock();
 
-print end - start;
+println(end - start);
 
-fun count(n) {
-    if (n > 1) count(n - 1);
-    print n;
-}
 
-count(3);
-
-fun printStuff() {
-    var x=false;
-    return x;
-    for(var i=0;i<10;i=i+1){
-        print "a";
-    }
-    return x;
-}
-print printStuff();
-
+/*
 
 fun makeCounter() {
     var i = 0;
     fun count() {
-    i = i + 1;
-    print i;
+        i = i + 1;
+        println(i);
     }
 
     return count;
@@ -216,47 +279,13 @@ fun add(a) {
     return add2;
 }
 
-print add(1)(2);
-
-
-fun sayHi(first, last) {
-    print "Hi, " + first + " " + last + "!";
-}
-sayHi("Dear", "Reader");
-
-fun fib(n) {
-    if (n <= 1) return n;
-    return fib(n - 2) + fib(n - 1);
-}
-
-for (var i = 0; i < 20; i = i + 1) {
-    print fib(i);
-}
-
-var p = 0;
-while(true) {
-    p = p+1;
-    if (p==100) break;
-    if (p<99) continue;
-    print p;
-}
-
-
-fun thrice(fn) {
-    for (var i = 1; i <= 3; i = i + 1) {
-        fn(i);
-    }
-}
-
-thrice(fun (a) {
-    print a;
-});
+println(add(1)(2));
 
 var add = fun (a) {return fun (b) {return a+b;};};
-print add(1234)(5555);
+println(add(1234)(5555));
 
 var coolAdd = fun (a) -> fun (b) -> a + b;
-print coolAdd (1234) (1234);
+println(coolAdd (1234) (1234));
 
 class Point {
     init(x,y) {
@@ -270,16 +299,16 @@ class Point {
 }
 
 var p = Point(2,3);
-print p.init(4,6);
-print p.toString();
+println(p.init(4,6));
+println(p.toString());
 
 var clos = p.toString;
 
-print clos();
+println(clos());
 
 class A {
     a() {
-        print "a";
+        println("a");
     }
 }
 
@@ -288,7 +317,7 @@ A().a();
 class Cake {
     taste() {
         var adjective = "delicious";
-        print "The " + this.flavor + " cake is " + adjective + "!";
+        println("The " + this.flavor + " cake is " + adjective + "!");
     }
 }
 
@@ -299,7 +328,7 @@ cake.taste(); // Prints "The German chocolate cake is delicious!".
 class Thing {
     getCallback() {
         fun localFunction() {
-            print this;
+            println(this);
         }
 
         return localFunction;
@@ -353,7 +382,7 @@ for(var i=0;i<10;i=i+1) {
     tree.insert(randint(0,100));
 }
 
-print tree.toString();
+println(tree.toString());
 
 class TreeNode {
     init(l,x,r) {
@@ -380,11 +409,11 @@ var tree2 = nil;
 var rep = fun (n) -> fun (f) -> (n <= 0) ? fun (x) -> x :
     fun (x) -> rep (n-1) (f) (f (x));
 
-print rep (10) (fun (x) -> x + 2) (20);
+println(rep (10) (fun (x) -> x + 2) (20));
 
 tree2 = rep (10) (fun (tree) -> tree_insert (tree) (randint(0,100))) (tree2);
 
-print tree_to_string (tree2);
+println(tree_to_string (tree2));
 
 
 
@@ -394,5 +423,5 @@ class Math {
   }
 }
 
-print Math.square(3); // Prints "9".
+println(Math.square(3)); // Prints "9".
 */ // closing comment
