@@ -35,7 +35,7 @@ void VM_free() {
 }
 
 void runtime_error(char* message, ...) {
-    CallFrame f = *vm.frame;
+    CallFrame f = *vm.csp;
     eprintf("Runtime error at line %d: ",
             chunk_get_instr_line(&f.func->chunk, f.ip - 1));
     va_list l;
@@ -43,7 +43,7 @@ void runtime_error(char* message, ...) {
     vfprintf(stderr, message, l);
     va_end(l);
     eprintf("\n");
-    CallFrame* p = *vm.cspp;
+    CallFrame* p = vm.csp;
     *p = f;
     for (; p > vm.call_stack; p--) {
         eprintf("    from call of %s at line %d\n",
@@ -51,6 +51,11 @@ void runtime_error(char* message, ...) {
                 chunk_get_instr_line(&p[-1].func->chunk, p[-1].ip - 1));
     }
 }
+
+#define FLUSH_REGS() (vm.sp = sp, vm.csp = csp, *vm.csp = cur)
+#define RESTORE_REGS() (sp = vm.sp, csp = vm.csp, cur = *vm.csp)
+
+#define runtime_error(...) (FLUSH_REGS(), runtime_error(__VA_ARGS__))
 
 #define FETCH() *cur.ip++
 #define CONST(n) (cur.func->chunk.constants.d[n])
@@ -73,7 +78,7 @@ bool truthy(Value v) {
     return !(v.type == VT_NIL || (v.type == VT_BOOL && !v.b));
 }
 
-void close_upvalues(Value* sp) {
+static inline void close_upvalues(Value* sp) {
     while (vm.open_upvalues && vm.open_upvalues->loc >= sp) {
         vm.open_upvalues->closed = *vm.open_upvalues->loc;
         vm.open_upvalues->loc = &vm.open_upvalues->closed;
@@ -82,20 +87,16 @@ void close_upvalues(Value* sp) {
 }
 
 int run(ObjFunction* toplevel) {
-    Value* sp = vm.stack;
-    CallFrame* csp = vm.call_stack;
+    register Value* sp = vm.stack;
+    register CallFrame* csp = vm.call_stack;
 
-    PUSH(OBJ_VAL(toplevel));
-
-    CallFrame cur;
-    cur.fp = vm.stack;
-    cur.func = (ObjFunction*) cur.fp[0].obj;
+    register CallFrame cur;
+    cur.fp = sp;
+    cur.func = toplevel;
     cur.up = NULL;
     cur.ip = cur.func->chunk.code.d;
 
-    vm.frame = &cur;
-    vm.spp = &sp;
-    vm.cspp = &csp;
+    PUSH(OBJ_VAL(toplevel));
 
 #ifdef DEBUG_TRACE
     eprintf("-------------- Begin Trace --------------\n");
@@ -348,10 +349,12 @@ int run(ObjFunction* toplevel) {
                         }
                         break;
                     case VT_BUILTIN:
+                        FLUSH_REGS();
                         if (v.builtin(nargs, sp - nargs - 1) != OK) {
                             runtime_error("Error from builtin function.");
                             return RUNTIME_ERROR;
                         }
+                        RESTORE_REGS();
                         sp -= nargs;
                         break;
                     default:

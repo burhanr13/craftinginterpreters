@@ -213,6 +213,12 @@ Token next_token() {
                     scanner.cur--;
                     return make_token(TOKEN_SLASH);
             }
+        case '#':
+            scanner.cur++;
+            while (*scanner.cur && *scanner.cur != '\n') {
+                scanner.cur++;
+            }
+            return next_token();
         case '"':
             while (*scanner.cur != '"') {
                 if (*scanner.cur == '\n' || *scanner.cur == '\0')

@@ -28,9 +28,8 @@ typedef struct {
 
     size_t alloc_bytes;
 
-    CallFrame* frame;
-    Value** spp;
-    CallFrame** cspp;
+    Value* sp;
+    CallFrame* csp;
     CallFrame call_stack[MAX_CALLS];
     Value stack[STACK_SIZE];
 } VM;
