@@ -53,6 +53,9 @@ void eprint_objtype(ObjType t) {
     }
 }
 
+#define NEXT(o) ((Obj*) (intptr_t) ((o)->next))
+#define SETNEXT(o, n) ((o)->next = (intptr_t) n)
+
 Obj* alloc_obj(ObjType t, size_t size) {
 #ifdef DEBUG_MEM
     eprintf("ALLOC %ld B, ", size);
@@ -73,7 +76,7 @@ Obj* alloc_obj(ObjType t, size_t size) {
     }
 #endif
 
-    o->next = vm.objs;
+    SETNEXT(o, vm.objs);
     vm.objs = o;
     return o;
 }
@@ -111,9 +114,9 @@ void free_obj(Obj* o) {
     vm.alloc_objs--;
 }
 
-#define MARK(o) ((o)->next = (Obj*) ((intptr_t) (o)->next | 1))
-#define UNMARK(o) ((o)->next = (Obj*) ((intptr_t) (o)->next & ~1))
-#define MARKED(o) ((intptr_t) (o)->next & 1)
+#define MARK(o) ((o)->next |= 1)
+#define UNMARK(o) ((o)->next &= ~1)
+#define MARKED(o) ((o)->next & 1)
 
 #define MARK_VALUE(v)                                                          \
     if ((v).type == VT_OBJ) mark_obj((v).obj)
@@ -176,14 +179,14 @@ void collect_garbage() {
         mark_obj(p);
     }
 
-    Obj** p = &vm.objs;
-    while (*p) {
-        if (MARKED(*p)) {
-            UNMARK(*p);
-            p = &(*p)->next;
+    Obj* p = (Obj*) &vm.objs;
+    while (NEXT(p)) {
+        if (MARKED(NEXT(p))) {
+            UNMARK(NEXT(p));
+            p = NEXT(p);
         } else {
-            Obj* tmp = *p;
-            *p = (*p)->next;
+            Obj* tmp = NEXT(p);
+            SETNEXT(p, NEXT(NEXT(p)));
             free_obj(tmp);
         }
     }
@@ -197,7 +200,7 @@ void collect_garbage() {
 void free_all_obj() {
     while (vm.objs) {
         Obj* tmp = vm.objs;
-        vm.objs = vm.objs->next;
+        vm.objs = NEXT(vm.objs);
         free_obj(tmp);
     }
 }

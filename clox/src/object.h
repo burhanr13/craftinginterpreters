@@ -15,8 +15,8 @@ typedef enum {
 } ObjType;
 
 typedef struct _Obj {
-    ObjType type;
-    struct _Obj* next;
+    intptr_t next : 48;
+    long type : 16;
 } Obj;
 
 typedef struct _ObjString {
