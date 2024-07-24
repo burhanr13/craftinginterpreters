@@ -3,8 +3,8 @@ TARGET_EXEC := clox
 CC := gcc
 
 CFLAGS := -Wall -Werror -Wimplicit-fallthrough
-CFLAGS_RELEASE := -O3 -flto=auto
-CFLAGS_DEBUG := -g -DDEBUG_MEM
+CFLAGS_RELEASE := -O3 -flto
+CFLAGS_DEBUG := -g
 
 CPPFLAGS := -MP -MMD
 

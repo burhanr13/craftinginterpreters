@@ -354,6 +354,19 @@ int resolve_upvalue(Compiler* compiler, Token id_tok) {
     return compiler->nupvalues++;
 }
 
+char escape_char(char c) {
+    switch (c) {
+        case 'n':
+            return '\n';
+        case 'r':
+            return '\r';
+        case 't':
+            return '\t';
+        default:
+            return c;
+    }
+}
+
 void parse_precedence(int prec) {
     switch (parser.cur.type) {
         case TOKEN_MINUS:
@@ -387,15 +400,33 @@ void parse_precedence(int prec) {
             advance();
             EMIT(OP_PUSH_NIL);
             break;
-        case TOKEN_STRING:
+        case TOKEN_STRING: {
             advance();
-            EMIT_CONST(OBJ_VAL(
-                create_string(parser.prev.start + 1, parser.prev.len - 2)));
+            char* buf = malloc(parser.prev.len);
+            char* p = buf;
+            for (int i = 1; i < parser.prev.len - 1; i++) {
+                if (parser.prev.start[i] == '\\') {
+                    i++;
+                    *p++ = escape_char(parser.prev.start[i]);
+                } else {
+                    *p++ = parser.prev.start[i];
+                }
+            }
+            EMIT_CONST(OBJ_VAL(create_string(buf, p - buf)));
+            free(buf);
             break;
-        case TOKEN_CHAR:
+        }
+        case TOKEN_CHAR: {
             advance();
-            EMIT_CONST(CHAR_VAL(parser.prev.start[1]));
+            char c;
+            if (parser.prev.start[1] == '\\') {
+                c = escape_char(parser.prev.start[2]);
+            } else {
+                c = parser.prev.start[1];
+            }
+            EMIT_CONST(CHAR_VAL(c));
             break;
+        }
         case TOKEN_IDENTIFIER:
             advance();
 

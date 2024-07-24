@@ -237,15 +237,21 @@ Token next_token() {
             while (*scanner.cur != '"') {
                 if (*scanner.cur == '\n' || *scanner.cur == '\0')
                     return error_token("Unterminated string.");
+                if (*scanner.cur == '\\') {
+                    scanner.cur++;
+                    if (*scanner.cur == '\0')
+                        return error_token("Unterminated string.");
+                }
                 scanner.cur++;
             }
             scanner.cur++;
             return make_token(TOKEN_STRING);
         case '\'':
+            if (*scanner.cur == '\\') scanner.cur++;
+            if (*scanner.cur == '\0') return error_token("Unterminated char");
             scanner.cur++;
-            if (*scanner.cur++ != '\'') {
-                return error_token("Unterminated char.");
-            }
+            if (*scanner.cur != '\'') return error_token("Unterminated char");
+            scanner.cur++;
             return make_token(TOKEN_CHAR);
         default:
             return error_token("Lexer error.");
