@@ -63,7 +63,7 @@ while (i < 40) {
         s = s + "/";
     }
     if (i % 2 == 1) {
-        s = s + "\";
+        s = s + "\\";
     }
 }
 
@@ -80,7 +80,7 @@ for (var i = 0; i < 50; i = i + 1) { // another comment
 println("--------- Test loops without body ------------");
 
 var d=0;
-while((d=d+1) < 10);
+while((d+=1) < 10);
 println(d);
 
 println("------------ Test fibonacci with loops ------------");

@@ -1,5 +1,11 @@
 #!./clox
 
-for(var i = 0;;i+=1) {
+var start = clock();
+
+for(var i = 0;i<1000000;i+=1) {
     var trash = "" + i;
+    print("\r" + trash);
 }
+println();
+
+println("Time: "+ (clock() - start));
