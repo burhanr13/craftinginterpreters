@@ -16,8 +16,8 @@ void table_free(Table* t) {
 Entry* find_entry(Table* t, ObjString* key) {
     if (!t->cap) return NULL;
     Entry* tombstone = NULL;
-    int idx = key->hash % t->cap;
-    for (;; idx = (idx + 1) % t->cap) {
+    int idx = key->hash & (t->cap - 1);
+    for (;; idx = (idx + 1) & (t->cap - 1)) {
         if (!t->ents[idx].key) {
             if (t->ents[idx].value.b) {
                 tombstone = tombstone ? tombstone : &t->ents[idx];
@@ -92,8 +92,8 @@ bool table_delete(Table* t, ObjString* key) {
 
 ObjString* table_find_string(Table* t, ObjString* key) {
     if (!t->cap) return NULL;
-    int idx = key->hash % t->cap;
-    for (;; idx = (idx + 1) % t->cap) {
+    int idx = key->hash & (t->cap - 1);
+    for (;; idx = (idx + 1) & (t->cap - 1)) {
         if (!t->ents[idx].key) {
             if (!t->ents[idx].value.b) return NULL;
         } else if (t->ents[idx].key->hash == key->hash &&
