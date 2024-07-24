@@ -36,6 +36,10 @@ enum {
 int infix_prec[TOKEN_MAX] = {
     [TOKEN_COMMA] = PREC_COMMA,
     [TOKEN_EQUAL] = PREC_ASSN,
+    [TOKEN_PLUS_EQUAL] = PREC_ASSN,
+    [TOKEN_MINUS_EQUAL] = PREC_ASSN,
+    [TOKEN_STAR_EQUAL] = PREC_ASSN,
+    [TOKEN_SLASH_EQUAL] = PREC_ASSN,
     [TOKEN_QUESTION] = PREC_COND,
     [TOKEN_COLON] = PREC_COMMA,
     [TOKEN_OR] = PREC_OR,
@@ -124,7 +128,7 @@ ObjFunction* compiler_end(bool ret_nil) {
                f->nupvalues * sizeof *f->upvalues);
     }
     curState = curState->parent;
-#ifdef DEBUG_INFO
+#ifdef DEBUG_DISASM
     if (!parser.hadError) disassemble_function(f);
     if (f->nupvalues) {
         eprintf("Closes over:");
@@ -408,11 +412,49 @@ void parse_precedence(int prec) {
                 }
             }
 
-            if (parser.cur.type == TOKEN_EQUAL && prec <= PREC_ASSN) {
-                advance();
-                PARSE_RHS_RA();
-                EMIT2(pop_op, id);
-                EMIT(OP_PUSH);
+            if (prec <= PREC_ASSN) {
+                switch (parser.cur.type) {
+                    case TOKEN_EQUAL:
+                        advance();
+                        PARSE_RHS_RA();
+                        EMIT2(pop_op, id);
+                        EMIT(OP_PUSH);
+                        break;
+                    case TOKEN_PLUS_EQUAL:
+                        advance();
+                        EMIT2(push_op, id);
+                        PARSE_RHS_RA();
+                        EMIT(OP_ADD);
+                        EMIT2(pop_op, id);
+                        EMIT(OP_PUSH);
+                        break;
+                    case TOKEN_MINUS_EQUAL:
+                        advance();
+                        EMIT2(push_op, id);
+                        PARSE_RHS_RA();
+                        EMIT(OP_SUB);
+                        EMIT2(pop_op, id);
+                        EMIT(OP_PUSH);
+                        break;
+                    case TOKEN_STAR_EQUAL:
+                        advance();
+                        EMIT2(push_op, id);
+                        PARSE_RHS_RA();
+                        EMIT(OP_MUL);
+                        EMIT2(pop_op, id);
+                        EMIT(OP_PUSH);
+                        break;
+                    case TOKEN_SLASH_EQUAL:
+                        advance();
+                        EMIT2(push_op, id);
+                        PARSE_RHS_RA();
+                        EMIT(OP_DIV);
+                        EMIT2(pop_op, id);
+                        EMIT(OP_PUSH);
+                        break;
+                    default:
+                        EMIT2(push_op, id);
+                }
             } else {
                 EMIT2(push_op, id);
             }
@@ -436,6 +478,18 @@ void parse_precedence(int prec) {
                 PARSE_RHS_RA();
                 break;
             case TOKEN_EQUAL:
+                parse_error("Invalid assignment.");
+                return;
+            case TOKEN_PLUS_EQUAL:
+                parse_error("Invalid assignment.");
+                return;
+            case TOKEN_MINUS_EQUAL:
+                parse_error("Invalid assignment.");
+                return;
+            case TOKEN_STAR_EQUAL:
+                parse_error("Invalid assignment.");
+                return;
+            case TOKEN_SLASH_EQUAL:
                 parse_error("Invalid assignment.");
                 return;
             case TOKEN_QUESTION: {

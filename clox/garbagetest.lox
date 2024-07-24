@@ -1,0 +1,5 @@
+#!./clox
+
+for(var i = 0;;i+=1) {
+    var trash = "" + i;
+}

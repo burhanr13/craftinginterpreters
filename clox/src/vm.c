@@ -14,6 +14,9 @@ VM vm;
 
 void VM_init() {
     vm.alloc_bytes = 0;
+    vm.alloc_objs = 0;
+    vm.gc_on = false;
+    vm.gc_threshold = 1024;
 
     table_init(&vm.strings);
     table_init(&vm.globals);
@@ -94,7 +97,7 @@ int run(ObjFunction* toplevel) {
     register CallFrame cur;
     cur.fp = sp;
     cur.func = toplevel;
-    cur.up = NULL;
+    cur.clos = NULL;
     cur.ip = cur.func->chunk.code.d;
 
     PUSH(OBJ_VAL(toplevel));
@@ -147,20 +150,22 @@ int run(ObjFunction* toplevel) {
                 break;
             }
             case OP_PUSH_UPVALUE: {
-                PUSH(*cur.up[FETCH()]->loc);
+                PUSH(*cur.clos->upvalues[FETCH()]->loc);
                 break;
             }
             case OP_POP_UPVALUE: {
-                POP(*cur.up[FETCH()]->loc);
+                POP(*cur.clos->upvalues[FETCH()]->loc);
                 break;
             }
             case OP_PUSH_CLOSURE: {
                 ObjFunction* func = (ObjFunction*) CONST(FETCH()).obj;
+                FLUSH_REGS();
                 ObjClosure* clos = create_closure(func);
-                clos->nupvalues = func->nupvalues;
+                PUSH(OBJ_VAL(clos));
+                FLUSH_REGS();
                 clos->upvalues =
-                    malloc(clos->nupvalues * sizeof *clos->upvalues);
-                for (int i = 0; i < clos->nupvalues; i++) {
+                    malloc(func->nupvalues * sizeof *clos->upvalues);
+                for (int i = 0; i < func->nupvalues; i++) {
                     if (func->upvalues[i].local) {
                         Value* loc = &cur.fp[func->upvalues[i].id];
                         ObjUpvalue** ptr = &vm.open_upvalues;
@@ -176,10 +181,11 @@ int run(ObjFunction* toplevel) {
                         }
                         clos->upvalues[i] = upval;
                     } else {
-                        clos->upvalues[i] = cur.up[func->upvalues[i].id];
+                        clos->upvalues[i] =
+                            cur.clos->upvalues[func->upvalues[i].id];
                     }
                 }
-                PUSH(OBJ_VAL(clos));
+                clos->nupvalues = func->nupvalues;
                 break;
             }
             case OP_PUSH_CONST:
@@ -225,11 +231,22 @@ int run(ObjFunction* toplevel) {
                 if (a.type == VT_NUMBER && b.type == VT_NUMBER) {
                     PUSH(NUMBER_VAL(a.num + b.num));
                 } else if (isObjType(a, OT_STRING) && isObjType(b, OT_STRING)) {
-                    PUSH(OBJ_VAL(
-                        concat_string((ObjString*) a.obj, (ObjString*) b.obj)));
+                    sp += 2;
+                    FLUSH_REGS();
+                    ObjString* sum =
+                        concat_string((ObjString*) a.obj, (ObjString*) b.obj);
+                    sp -= 2;
+                    PUSH(OBJ_VAL(sum));
                 } else if (isObjType(a, OT_STRING)) {
-                    PUSH(OBJ_VAL(
-                        concat_string((ObjString*) a.obj, string_value(b))));
+                    sp += 2;
+                    FLUSH_REGS();
+                    ObjString* bstr = string_value(b);
+                    sp--;
+                    PUSH(OBJ_VAL(bstr));
+                    FLUSH_REGS();
+                    ObjString* sum = concat_string((ObjString*) a.obj, bstr);
+                    sp -= 2;
+                    PUSH(OBJ_VAL(sum));
                 } else {
                     runtime_error("Invalid operand for '+'.");
                     return RUNTIME_ERROR;
@@ -313,8 +330,8 @@ int run(ObjFunction* toplevel) {
                                 }
                                 *csp++ = cur;
                                 cur.func = func;
+                                cur.clos = NULL;
                                 cur.fp = sp - nargs - 1;
-                                cur.up = NULL;
                                 cur.ip = func->chunk.code.d;
                                 if (func->nargs != nargs) {
                                     runtime_error("Invalid argument count, "
@@ -333,8 +350,8 @@ int run(ObjFunction* toplevel) {
                                 }
                                 *csp++ = cur;
                                 cur.func = func;
+                                cur.clos = clos;
                                 cur.fp = sp - nargs - 1;
-                                cur.up = clos->upvalues;
                                 cur.ip = func->chunk.code.d;
                                 if (func->nargs != nargs) {
                                     runtime_error("Invalid argument count, "
@@ -383,5 +400,9 @@ int interpret(char* source) {
         return COMPILE_ERROR;
     }
 
-    return run(toplevel);
+    gc_enable();
+    int code = run(toplevel);
+    gc_disable();
+
+    return code;
 }

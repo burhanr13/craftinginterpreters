@@ -4,6 +4,7 @@
 
 void table_init(Table* t) {
     t->size = 0;
+    t->occ = 0;
     t->cap = 0;
     t->ents = NULL;
 }
@@ -35,6 +36,7 @@ static void resize(Table* t, size_t newcap) {
     t->ents = calloc(newcap, sizeof(Entry));
     t->cap = newcap;
     t->size = 0;
+    t->occ = 0;
     for (int i = 0; i < oldcap; i++) {
         if (oldents[i].key) {
             table_set(t, oldents[i].key, oldents[i].value);
@@ -44,13 +46,14 @@ static void resize(Table* t, size_t newcap) {
 }
 
 bool table_set(Table* t, ObjString* key, Value val) {
-    if (t->size + 1 > t->cap * LOAD_FACTOR) {
+    if (t->occ >= t->cap * LOAD_FACTOR) {
         resize(t, t->cap ? 2 * t->cap : 8);
     }
     Entry* e = find_entry(t, key);
     bool newKey = !e->key;
-    if (!e->key && !e->value.b) {
+    if (!e->key) {
         t->size++;
+        if (!e->value.b) t->occ++;
     }
     e->key = key;
     e->value = val;
@@ -80,6 +83,10 @@ bool table_delete(Table* t, ObjString* key) {
     if (!e || !e->key) return false;
     e->key = NULL;
     e->value = BOOL_VAL(true);
+    t->size--;
+    if (t->size < t->cap * SHRINK_FACTOR) {
+        resize(t, t->cap / 2);
+    }
     return true;
 }
 

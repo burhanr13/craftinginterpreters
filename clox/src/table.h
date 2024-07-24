@@ -8,6 +8,7 @@
 #include "value.h"
 
 #define LOAD_FACTOR 0.75
+#define SHRINK_FACTOR 0.25
 
 typedef struct {
     ObjString* key;
@@ -16,6 +17,7 @@ typedef struct {
 
 typedef struct {
     size_t size;
+    size_t occ;
     size_t cap;
     Entry* ents;
 } Table;

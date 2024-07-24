@@ -14,8 +14,8 @@ enum { OK, NO_FILE, COMPILE_ERROR, RUNTIME_ERROR };
 
 typedef struct {
     ObjFunction* func;
+    ObjClosure* clos;
     Value* fp;
-    ObjUpvalue** up;
     u8* ip;
 } CallFrame;
 
@@ -26,7 +26,10 @@ typedef struct {
 
     ObjUpvalue* open_upvalues;
 
+    bool gc_on;
+    size_t gc_threshold;
     size_t alloc_bytes;
+    int alloc_objs;
 
     Value* sp;
     CallFrame* csp;
@@ -38,6 +41,22 @@ extern VM vm;
 
 void VM_init();
 void VM_free();
+
+static inline void gc_enable() {
+    vm.gc_on = true;
+#ifdef DEBUG_MEM
+    eprintf("=========== gc on [%ld B, %d OBJ] ============\n", vm.alloc_bytes,
+            vm.alloc_objs);
+#endif
+}
+
+static inline void gc_disable() {
+    vm.gc_on = false;
+#ifdef DEBUG_MEM
+    eprintf("=========== gc off [%ld B, %d OBJ] ===========\n", vm.alloc_bytes,
+            vm.alloc_objs);
+#endif
+}
 
 int interpret(char* source);
 

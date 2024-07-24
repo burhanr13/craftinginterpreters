@@ -56,13 +56,17 @@ static inline bool isObjType(Value v, ObjType t) {
     return v.type == VT_OBJ && v.obj->type == t;
 }
 bool obj_equal(Obj* a, Obj* b);
-void fprint_obj(FILE* file, Obj* obj);
-#define print_obj(obj) fprint_obj(stdout, obj)
-#define eprint_obj(obj) fprint_obj(stderr, obj)
+void fprint_obj(FILE* file, Obj* obj, bool debug);
+#define print_obj(obj) fprint_obj(stdout, obj, false)
+#define eprint_obj(obj) fprint_obj(stderr, obj, true)
 
 Obj* alloc_obj(ObjType t, size_t size);
 void free_obj(Obj* o);
 
+void _mark_obj(Obj* o);
+#define mark_obj(o) (_mark_obj((Obj*) o))
+
+void collect_garbage();
 void free_all_obj();
 
 ObjString* create_string(char* str, int len);

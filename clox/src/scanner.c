@@ -153,19 +153,31 @@ Token next_token() {
             return make_token(TOKEN_COMMA);
         case '.':
             return make_token(TOKEN_DOT);
-        case '+':
-            return make_token(TOKEN_PLUS);
-        case '*':
-            return make_token(TOKEN_STAR);
         case '%':
             return make_token(TOKEN_PERCENT);
         case '?':
             return make_token(TOKEN_QUESTION);
         case ':':
             return make_token(TOKEN_COLON);
+        case '+':
+            if (*scanner.cur++ == '=') {
+                return make_token(TOKEN_PLUS_EQUAL);
+            }
+            scanner.cur--;
+            return make_token(TOKEN_PLUS);
+        case '*':
+            if (*scanner.cur++ == '=') {
+                return make_token(TOKEN_STAR_EQUAL);
+            }
+            scanner.cur--;
+            return make_token(TOKEN_STAR);
         case '-':
             if (*scanner.cur++ == '>') {
                 return make_token(TOKEN_ARROW);
+            }
+            scanner.cur--;
+            if (*scanner.cur++ == '=') {
+                return make_token(TOKEN_MINUS_EQUAL);
             }
             scanner.cur--;
             return make_token(TOKEN_MINUS);
@@ -195,6 +207,8 @@ Token next_token() {
             return make_token(TOKEN_GREATER);
         case '/':
             switch (*scanner.cur++) {
+                case '=':
+                    return make_token(TOKEN_SLASH_EQUAL);
                 case '/':
                     while (*scanner.cur && *scanner.cur != '\n') {
                         scanner.cur++;

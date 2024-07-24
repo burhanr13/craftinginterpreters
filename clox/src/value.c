@@ -22,12 +22,11 @@ bool value_equal(Value a, Value b) {
             return obj_equal(a.obj, b.obj);
         case VT_BUILTIN:
             return a.builtin == b.builtin;
-        default:
-            return false;
     }
+    return false;
 }
 
-void fprint_value(FILE* file, Value v) {
+void fprint_value(FILE* file, Value v, bool debug) {
 #define printf(...) fprintf(file, __VA_ARGS__)
     switch (v.type) {
         case VT_NUMBER:
@@ -41,10 +40,11 @@ void fprint_value(FILE* file, Value v) {
             printf("%s", v.b ? "true" : "false");
             break;
         case VT_CHAR:
-            printf("%c", v.c);
+            if (debug) printf("'%c'", v.c);
+            else printf("%c", v.c);
             break;
         case VT_OBJ:
-            fprint_obj(file, v.obj);
+            fprint_obj(file, v.obj, debug);
             break;
         case VT_BUILTIN:
             printf("<builtin fn>");

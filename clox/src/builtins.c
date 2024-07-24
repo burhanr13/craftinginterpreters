@@ -61,11 +61,13 @@ DECL_BUILTIN(loadModule) {
     (void) !fread(program, 1, len, fp);
     fclose(fp);
 
+    gc_disable();
     ObjFunction* compiled = compile(program);
     free(program);
 
     if (!compiled) return RUNTIME_ERROR;
 
+    gc_enable();
     argv[0] = OBJ_VAL(compiled);
     return OK;
 }

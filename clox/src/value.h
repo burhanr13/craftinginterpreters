@@ -39,9 +39,9 @@ typedef struct _Value {
 #define BUILTIN_VAL(_b) ((Value){.type = VT_BUILTIN, {.builtin = _b}})
 
 bool value_equal(Value a, Value b);
-void fprint_value(FILE* file, Value v);
-#define print_value(v) fprint_value(stdout, v)
-#define eprint_value(v) fprint_value(stderr, v)
+void fprint_value(FILE* file, Value v, bool debug);
+#define print_value(v) fprint_value(stdout, v, false)
+#define eprint_value(v) fprint_value(stderr, v, true)
 ObjString* string_value(Value v);
 
 #endif

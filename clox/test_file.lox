@@ -1,6 +1,6 @@
 #!./clox
 
-/*
+
 
 println("===== Test basics =============");
 
@@ -261,7 +261,6 @@ var end = clock();
 
 println(end - start);
 
-*/
 
 println("========== Test closures ============");
 

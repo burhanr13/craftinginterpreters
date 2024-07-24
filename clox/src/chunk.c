@@ -124,13 +124,7 @@ int disassemble_instr(Chunk* c, int off) {
         case OP_PUSH_CONST: {
             eprintf("push ");
             int const_ind = c->code.d[off++];
-            bool isStr = isObjType(c->constants.d[const_ind], OT_STRING);
-            bool isChar = c->constants.d[const_ind].type == VT_CHAR;
-            if (isStr) eprintf("\"");
-            if (isChar) eprintf("'");
             eprint_value(c->constants.d[const_ind]);
-            if (isStr) eprintf("\"");
-            if (isChar) eprintf("'");
             eprintf(" (@%d)", const_ind);
             break;
         }

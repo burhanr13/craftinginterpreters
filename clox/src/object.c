@@ -12,11 +12,12 @@ bool obj_equal(Obj* a, Obj* b) {
     return a == b;
 }
 
-void fprint_obj(FILE* file, Obj* obj) {
+void fprint_obj(FILE* file, Obj* obj, bool debug) {
 #define printf(...) fprintf(file, __VA_ARGS__)
     switch (obj->type) {
         case OT_STRING:
-            printf("%s", ((ObjString*) obj)->data);
+            if (debug) printf("\"%s\"", ((ObjString*) obj)->data);
+            else printf("%s", ((ObjString*) obj)->data);
             break;
         case OT_FUNCTION:
             if (((ObjFunction*) obj)->name)
@@ -24,18 +25,54 @@ void fprint_obj(FILE* file, Obj* obj) {
             else printf("<anonymous fn>");
             break;
         case OT_CLOSURE:
-            fprint_obj(file, (Obj*) ((ObjClosure*) obj)->f);
+            if (debug) printf("<closure ");
+            fprint_obj(file, (Obj*) ((ObjClosure*) obj)->f, debug);
+            if (debug) printf(">");
             break;
         case OT_UPVALUE:
+            printf("<upvalue>");
             break;
     }
 #undef printf
 }
 
+void eprint_objtype(ObjType t) {
+    switch (t) {
+        case OT_STRING:
+            eprintf("String");
+            break;
+        case OT_FUNCTION:
+            eprintf("Function");
+            break;
+        case OT_CLOSURE:
+            eprintf("Closure");
+            break;
+        case OT_UPVALUE:
+            eprintf("Upvalue");
+            break;
+    }
+}
+
 Obj* alloc_obj(ObjType t, size_t size) {
+#ifdef DEBUG_MEM
+    eprintf("ALLOC %ld B, ", size);
+    eprint_objtype(t);
+    eprintf("\n");
+#endif
     Obj* o = malloc(size);
     vm.alloc_bytes += size;
+    vm.alloc_objs++;
     o->type = t;
+
+#ifdef DEBUG_GC_STRESS
+    collect_garbage();
+#else
+    if (vm.alloc_bytes >= vm.gc_threshold) {
+        collect_garbage();
+        vm.gc_threshold = vm.alloc_bytes * 2;
+    }
+#endif
+
     o->next = vm.objs;
     vm.objs = o;
     return o;
@@ -49,6 +86,7 @@ void free_obj(Obj* o) {
     switch (o->type) {
         case OT_STRING:
             size = sizeof(ObjString) + ((ObjString*) o)->len + 1;
+            table_delete(&vm.strings, (ObjString*) o);
             break;
         case OT_FUNCTION:
             size = sizeof(ObjFunction);
@@ -60,11 +98,100 @@ void free_obj(Obj* o) {
             free(((ObjClosure*) o)->upvalues);
             break;
         case OT_UPVALUE:
-            size = sizeof(OT_UPVALUE);
+            size = sizeof(ObjUpvalue);
             break;
     }
+#ifdef DEBUG_MEM
+    eprintf("FREE %ld B, ", size);
+    eprint_objtype(o->type);
+    eprintf("\n");
+#endif
     free(o);
     vm.alloc_bytes -= size;
+    vm.alloc_objs--;
+}
+
+#define MARK(o) ((o)->next = (Obj*) ((intptr_t) (o)->next | 1))
+#define UNMARK(o) ((o)->next = (Obj*) ((intptr_t) (o)->next & ~1))
+#define MARKED(o) ((intptr_t) (o)->next & 1)
+
+#define MARK_VALUE(v)                                                          \
+    if ((v).type == VT_OBJ) mark_obj((v).obj)
+
+void _mark_obj(Obj* o) {
+    if (MARKED(o)) return;
+    MARK(o);
+    switch (o->type) {
+        case OT_STRING:
+            break;
+        case OT_FUNCTION: {
+            ObjFunction* f = (ObjFunction*) o;
+            if (f->name) mark_obj(f->name);
+            for (int i = 0; i < f->chunk.constants.size; i++) {
+                MARK_VALUE(f->chunk.constants.d[i]);
+            }
+            break;
+        }
+        case OT_CLOSURE: {
+            ObjClosure* c = (ObjClosure*) o;
+            mark_obj(c->f);
+            for (int i = 0; i < c->nupvalues; i++) {
+                mark_obj(c->upvalues[i]);
+            }
+            break;
+        }
+        case OT_UPVALUE: {
+            ObjUpvalue* u = (ObjUpvalue*) o;
+            if (u->loc == &u->closed) MARK_VALUE(u->closed);
+            break;
+        }
+    }
+}
+
+void mark_table(Table* tbl) {
+    for (int i = 0; i < tbl->cap; i++) {
+        if (tbl->ents[i].key) {
+            mark_obj(tbl->ents[i].key);
+            MARK_VALUE(tbl->ents[i].value);
+        }
+    }
+}
+
+void collect_garbage() {
+    if (!vm.gc_on) return;
+#ifdef DEBUG_MEM
+    eprintf("------ begin gc [%ld B, %d OBJ] --------\n", vm.alloc_bytes,
+            vm.alloc_objs);
+#endif
+
+    for (Value* p = vm.stack_base; p < vm.sp; p++) {
+        MARK_VALUE(*p);
+    }
+    for (CallFrame* p = vm.call_stack; p <= vm.csp; p++) {
+        mark_obj(p->func);
+        if (p->clos) mark_obj(p->clos);
+    }
+    mark_table(&vm.globals);
+    for (ObjUpvalue* p = vm.open_upvalues; p; p = p->next) {
+        mark_obj(p);
+    }
+
+    Obj** p = &vm.objs;
+    while (*p) {
+        if (MARKED(*p)) {
+            UNMARK(*p);
+            p = &(*p)->next;
+        } else {
+            Obj* tmp = *p;
+            *p = (*p)->next;
+            free_obj(tmp);
+        }
+    }
+
+#ifdef DEBUG_MEM
+    eprintf("------ end gc [%ld B, %d OBJ] --------\n", vm.alloc_bytes,
+            vm.alloc_objs);
+#endif
 }
 
 void free_all_obj() {
@@ -97,8 +224,6 @@ ObjString* create_string(char* str, int len) {
 
     ObjString* intern = table_find_string(&vm.strings, o);
     if (intern) {
-        vm.objs = vm.objs->next;
-        free_obj((Obj*) o);
         return intern;
     } else {
         table_set(&vm.strings, o, NIL_VAL);
@@ -114,8 +239,6 @@ ObjString* concat_string(ObjString* a, ObjString* b) {
     HASH_STR(c);
     ObjString* intern = table_find_string(&vm.strings, c);
     if (intern) {
-        vm.objs = vm.objs->next;
-        free_obj((Obj*) c);
         return intern;
     } else {
         table_set(&vm.strings, c, NIL_VAL);
