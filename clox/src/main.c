@@ -54,6 +54,7 @@ int run_file(char* filename) {
 int main(int argc, char** argv) {
 
     VM_init();
+    atexit(VM_free);
 
     int exitcode = 0;
     if (argc < 2) {
@@ -63,6 +64,5 @@ int main(int argc, char** argv) {
         if (exitcode == NO_FILE) perror("clox");
     }
 
-    VM_free();
     return exitcode;
 }

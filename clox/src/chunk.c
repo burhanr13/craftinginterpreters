@@ -121,6 +121,16 @@ int disassemble_instr(Chunk* c, int off) {
             eprintf("> (@%d)", const_ind);
             break;
         }
+        case OP_PUSH_ARRAY: {
+            eprintf("push array");
+            break;
+        }
+        case OP_PUSH_ARRAY_INIT: {
+            eprintf("push array inited[");
+            int ind = c->code.d[off++];
+            eprintf("%d]", ind);
+            break;
+        }
         case OP_PUSH_CONST: {
             eprintf("push ");
             int const_ind = c->code.d[off++];
@@ -145,6 +155,28 @@ int disassemble_instr(Chunk* c, int off) {
             break;
         case OP_POPN:
             eprintf("pop %dx", c->code.d[off++]);
+            break;
+        case OP_GETATTR: {
+            eprintf("getattr ");
+            int const_ind = c->code.d[off++];
+            eprintf("%s (@%d)",
+                    ((ObjString*) c->constants.d[const_ind].obj)->data,
+                    const_ind);
+            break;
+        }
+        case OP_SETATTR: {
+            eprintf("setattr ");
+            int const_ind = c->code.d[off++];
+            eprintf("%s (@%d)",
+                    ((ObjString*) c->constants.d[const_ind].obj)->data,
+                    const_ind);
+            break;
+        }
+        case OP_GETITEM:
+            eprintf("getitem");
+            break;
+        case OP_SETITEM:
+            eprintf("setitem");
             break;
         case OP_NEG:
             eprintf("neg");

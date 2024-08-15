@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <math.h>
 
@@ -23,10 +24,13 @@ void VM_init() {
     vm.open_upvalues = NULL;
 
     ADD_BUILTIN(clock);
+    ADD_BUILTIN(random);
+
     ADD_BUILTIN(print);
     ADD_BUILTIN(println);
     ADD_BUILTIN(scanln);
     ADD_BUILTIN(getc);
+    ADD_BUILTIN(exit);
 
     ADD_BUILTIN(loadModule);
 }
@@ -141,6 +145,88 @@ int run(ObjFunction* toplevel) {
                 }
                 break;
             }
+            case OP_GETATTR: {
+                ObjString* id = GET_ID(FETCH());
+                POP(Value v);
+                if (isObjType(v, OT_ARRAY) && !strcmp(id->data, "len")) {
+                    PUSH(NUMBER_VAL(((ObjArray*) v.obj)->len));
+                    break;
+                }
+                if (!isObjType(v, OT_INSTANCE)) {
+                    runtime_error("Value must be an instance.");
+                    return RUNTIME_ERROR;
+                }
+                ObjInstance* inst = (ObjInstance*) v.obj;
+                if (!table_get(&inst->attrs, id, &v)) {
+                    runtime_error("Unknown attribute \"%s\".", id->data);
+                    return RUNTIME_ERROR;
+                }
+                PUSH(v);
+                break;
+            }
+            case OP_SETATTR: {
+                ObjString* id = GET_ID(FETCH());
+                POP(Value a);
+                POP(Value v);
+                if (!isObjType(v, OT_INSTANCE)) {
+                    runtime_error("Value must be an instance.");
+                    return RUNTIME_ERROR;
+                }
+                ObjInstance* inst = (ObjInstance*) v.obj;
+                table_set(&inst->attrs, id, a);
+                PUSH(a);
+                break;
+            }
+            case OP_GETITEM: {
+                POP(Value i);
+                POP(Value a);
+                if (isObjType(a, OT_ARRAY)) {
+                    if (i.type != VT_NUMBER) {
+                        runtime_error("Index must be a number.");
+                        return RUNTIME_ERROR;
+                    }
+                    size_t idx = i.num;
+                    ObjArray* arr = (ObjArray*) a.obj;
+                    if (idx < 0) idx += arr->len;
+                    if (idx < 0 || idx >= arr->len) {
+                        runtime_error(
+                            "Index %d out of bounds for array of length %d.",
+                            idx, arr->len);
+                        return RUNTIME_ERROR;
+                    }
+                    PUSH(arr->data[idx]);
+                } else {
+                    runtime_error("Value not subscriptable.");
+                    return RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_SETITEM: {
+                POP(Value v);
+                POP(Value i);
+                POP(Value a);
+                if (isObjType(a, OT_ARRAY)) {
+                    if (i.type != VT_NUMBER) {
+                        runtime_error("Index must be a number.");
+                        return RUNTIME_ERROR;
+                    }
+                    size_t idx = i.num;
+                    ObjArray* arr = (ObjArray*) a.obj;
+                    if (idx < 0) idx += arr->len;
+                    if (idx < 0 || idx >= arr->len) {
+                        runtime_error(
+                            "Index %d out of bounds for array of length %d.",
+                            idx, arr->len);
+                        return RUNTIME_ERROR;
+                    }
+                    arr->data[idx] = v;
+                    PUSH(v);
+                } else {
+                    runtime_error("Value not subscriptable.");
+                    return RUNTIME_ERROR;
+                }
+                break;
+            }
             case OP_PUSH_LOCAL: {
                 PUSH(cur.fp[FETCH()]);
                 break;
@@ -186,6 +272,24 @@ int run(ObjFunction* toplevel) {
                     }
                 }
                 clos->nupvalues = func->nupvalues;
+                break;
+            }
+            case OP_PUSH_ARRAY: {
+                POP(Value l);
+                if (l.type != VT_NUMBER) {
+                    runtime_error("Array lenght must be a number.");
+                    return RUNTIME_ERROR;
+                }
+                FLUSH_REGS();
+                PUSH(OBJ_VAL(create_array(l.num)));
+                break;
+            }
+            case OP_PUSH_ARRAY_INIT: {
+                int len = FETCH();
+                FLUSH_REGS();
+                ObjArray* arr = create_array_full(len, sp - len);
+                sp -= len;
+                PUSH(OBJ_VAL(arr));
                 break;
             }
             case OP_PUSH_CONST:
@@ -361,12 +465,21 @@ int run(ObjFunction* toplevel) {
                                 }
                                 break;
                             }
+                            case OT_CLASS: {
+                                FLUSH_REGS();
+                                ObjClass* cls = (ObjClass*) v.obj;
+                                ObjInstance* inst = create_instance(cls);
+                                sp -= nargs + 1;
+                                PUSH(OBJ_VAL(inst));
+                                break;
+                            }
                             default:
                                 runtime_error("Value not callable.");
                                 return RUNTIME_ERROR;
                         }
                         break;
                     case VT_BUILTIN:
+                        FLUSH_REGS();
                         if (v.builtin(nargs, sp - nargs - 1) != OK) {
                             runtime_error("Error from builtin function.");
                             return RUNTIME_ERROR;

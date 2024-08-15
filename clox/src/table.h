@@ -4,11 +4,12 @@
 #include <stdlib.h>
 
 #include "types.h"
-#include "object.h"
 #include "value.h"
 
 #define LOAD_FACTOR 0.75
 #define SHRINK_FACTOR 0.25
+
+typedef struct _ObjString ObjString;
 
 typedef struct {
     ObjString* key;

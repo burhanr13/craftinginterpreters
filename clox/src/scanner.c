@@ -42,7 +42,13 @@ TokenType identifierType() {
     char* p = scanner.start;
     switch (*p++) {
         case 'a':
-            __KWD("nd", TOKEN_AND);
+            switch (*p++) {
+                case 'n':
+                    __KWD("d", TOKEN_AND);
+                case 'r':
+                    __KWD("ray", TOKEN_ARRAY);
+            }
+            break;
         case 'b':
             __KWD("reak", TOKEN_BREAK);
         case 'c':
@@ -143,10 +149,14 @@ Token next_token() {
             return make_token(TOKEN_LEFT_PAREN);
         case ')':
             return make_token(TOKEN_RIGHT_PAREN);
+        case '[':
+            return make_token(TOKEN_LEFT_SQUARE);
+        case ']':
+            return make_token(TOKEN_RIGHT_SQUARE);
         case '{':
-            return make_token(TOKEN_LEFT_BRACE);
+            return make_token(TOKEN_LEFT_CURLY);
         case '}':
-            return make_token(TOKEN_RIGHT_BRACE);
+            return make_token(TOKEN_RIGHT_CURLY);
         case ';':
             return make_token(TOKEN_SEMICOLON);
         case ',':

@@ -45,6 +45,18 @@ DECL_BUILTIN(getc) {
     return OK;
 }
 
+DECL_BUILTIN(exit) {
+    int exitcode;
+    if (argc > 0 && argv[1].type == VT_NUMBER) exitcode = argv[1].num;
+    else exitcode = 0;
+    exit(exitcode);
+}
+
+DECL_BUILTIN(random) {
+    argv[0] = NUMBER_VAL((double) random() / RAND_MAX);
+    return OK;
+}
+
 DECL_BUILTIN(loadModule) {
     if (argc < 1) return RUNTIME_ERROR;
     if (!isObjType(argv[1], OT_STRING)) return RUNTIME_ERROR;

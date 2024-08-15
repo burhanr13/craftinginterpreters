@@ -2,6 +2,7 @@
 #define VM_H
 
 #include "chunk.h"
+#include "object.h"
 #include "table.h"
 #include "value.h"
 

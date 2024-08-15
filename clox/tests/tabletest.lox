@@ -1,0 +1,28 @@
+#!./clox
+
+var start = clock();
+
+var a;
+var b;
+var c;
+var d;
+var e;
+var f;
+var g;
+var h;
+var i;
+
+for(i=0;i<10000000;i+=1) {
+    a = i;
+    b = a;
+    c = b;
+    d = c;
+    e = d;
+    f = e;
+    g = f;
+    h = g;
+}
+
+println(a+b+c+d+e+f+g+h+i);
+
+println("Time: "+(clock()-start));

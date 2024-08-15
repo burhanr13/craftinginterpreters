@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "object.h"
+
 void table_init(Table* t) {
     t->size = 0;
     t->occ = 0;

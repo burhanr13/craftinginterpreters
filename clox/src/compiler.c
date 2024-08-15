@@ -26,8 +26,8 @@ enum {
     PREC_COMP,
     PREC_SUM,
     PREC_PROD,
-    PREC_UNARY,
-    PREC_CALL,
+    PREC_PREFIX,
+    PREC_POSTFIX,
     PREC_PRIMARY,
 
     PREC_MAX
@@ -55,7 +55,9 @@ int infix_prec[TOKEN_MAX] = {
     [TOKEN_STAR] = PREC_PROD,
     [TOKEN_SLASH] = PREC_PROD,
     [TOKEN_PERCENT] = PREC_PROD,
-    [TOKEN_LEFT_PAREN] = PREC_CALL,
+    [TOKEN_LEFT_PAREN] = PREC_POSTFIX,
+    [TOKEN_LEFT_SQUARE] = PREC_POSTFIX,
+    [TOKEN_DOT] = PREC_POSTFIX,
 };
 
 struct {
@@ -245,8 +247,8 @@ void leave_scope() {
 void synchronize() {
     advance();
     while (parser.cur.type != TOKEN_EOF &&
-           parser.cur.type != TOKEN_LEFT_BRACE &&
-           parser.cur.type != TOKEN_RIGHT_BRACE &&
+           parser.cur.type != TOKEN_LEFT_CURLY &&
+           parser.cur.type != TOKEN_RIGHT_CURLY &&
            parser.prev.type != TOKEN_SEMICOLON)
         advance();
     parser.curError = false;
@@ -254,11 +256,11 @@ void synchronize() {
 
 void parse_block() {
     while (parser.cur.type != TOKEN_EOF &&
-           parser.cur.type != TOKEN_RIGHT_BRACE) {
+           parser.cur.type != TOKEN_RIGHT_CURLY) {
         parse_decl_or_stmt();
         if (parser.curError) synchronize();
     }
-    EXPECT(TOKEN_RIGHT_BRACE);
+    EXPECT(TOKEN_RIGHT_CURLY);
 }
 
 void define_var(Token id_tok) {
@@ -296,7 +298,7 @@ void parse_function(ObjString* name, bool expr) {
     bool nil_ret;
 
     switch (parser.cur.type) {
-        case TOKEN_LEFT_BRACE: {
+        case TOKEN_LEFT_CURLY: {
             advance();
             enter_scope();
             parse_block();
@@ -371,12 +373,12 @@ void parse_precedence(int prec) {
     switch (parser.cur.type) {
         case TOKEN_MINUS:
             advance();
-            parse_precedence(PREC_UNARY);
+            parse_precedence(PREC_PREFIX);
             EMIT(OP_NEG);
             break;
         case TOKEN_NOT:
             advance();
-            parse_precedence(PREC_UNARY);
+            parse_precedence(PREC_PREFIX);
             EMIT(OP_NOT);
             break;
         case TOKEN_LEFT_PAREN:
@@ -494,6 +496,29 @@ void parse_precedence(int prec) {
             advance();
 
             parse_function(NULL, true);
+            break;
+        }
+        case TOKEN_ARRAY: {
+            advance();
+            EXPECT(TOKEN_LEFT_SQUARE);
+            parse_expr();
+            EXPECT(TOKEN_RIGHT_SQUARE);
+            EMIT(OP_PUSH_ARRAY);
+            break;
+        }
+        case TOKEN_LEFT_SQUARE: {
+            advance();
+            int len = 0;
+            while (parser.cur.type != TOKEN_EOF &&
+                   parser.cur.type != TOKEN_RIGHT_SQUARE) {
+                parse_precedence(PREC_ASSN);
+                len++;
+                if (parser.cur.type != TOKEN_RIGHT_SQUARE) {
+                    EXPECT(TOKEN_COMMA);
+                }
+            }
+            EXPECT(TOKEN_RIGHT_SQUARE);
+            EMIT2(OP_PUSH_ARRAY_INIT, len);
             break;
         }
         default:
@@ -624,8 +649,34 @@ void parse_precedence(int prec) {
                 EMIT2(OP_CALL, nargs);
                 break;
             }
-            case TOKEN_DOT:
+            case TOKEN_LEFT_SQUARE: {
+                advance();
+
+                parse_expr();
+                EXPECT(TOKEN_RIGHT_SQUARE);
+
+                if (prec <= PREC_ASSN && parser.cur.type == TOKEN_EQUAL) {
+                    advance();
+                    PARSE_RHS_RA();
+                    EMIT(OP_SETITEM);
+                } else {
+                    EMIT(OP_GETITEM);
+                }
                 break;
+            }
+            case TOKEN_DOT: {
+                advance();
+                EXPECT(TOKEN_IDENTIFIER);
+                u8 id = global_ref_id(parser.prev);
+                if (prec <= PREC_ASSN && parser.cur.type == TOKEN_EQUAL) {
+                    advance();
+                    PARSE_RHS_RA();
+                    EMIT2(OP_SETATTR, id);
+                } else {
+                    EMIT2(OP_GETATTR, id);
+                }
+                break;
+            }
             default:
                 break;
         }
@@ -638,7 +689,7 @@ void parse_expr() {
 
 void parse_stmt() {
     switch (parser.cur.type) {
-        case TOKEN_LEFT_BRACE:
+        case TOKEN_LEFT_CURLY:
             advance();
             enter_scope();
             parse_block();
@@ -815,12 +866,12 @@ void parse_stmt() {
             Vec_init(curState->breakSrcs);
             curState->breakDepth = curState->depth;
 
-            EXPECT(TOKEN_LEFT_BRACE);
+            EXPECT(TOKEN_LEFT_CURLY);
 
             int casejmp = emit_jmp(OP_JMP);
 
             while (parser.cur.type != TOKEN_EOF &&
-                   parser.cur.type != TOKEN_RIGHT_BRACE) {
+                   parser.cur.type != TOKEN_RIGHT_CURLY) {
                 switch (parser.cur.type) {
                     case TOKEN_CASE: {
                         advance();
@@ -846,7 +897,7 @@ void parse_stmt() {
                 }
                 if (parser.curError) synchronize();
             }
-            EXPECT(TOKEN_RIGHT_BRACE);
+            EXPECT(TOKEN_RIGHT_CURLY);
 
             if (casejmp != -1) patch_jmp(casejmp);
 
@@ -934,6 +985,19 @@ void parse_decl_or_stmt() {
             Token id_tok = parser.prev;
 
             parse_function(create_string(id_tok.start, id_tok.len), false);
+            define_var(id_tok);
+
+            break;
+        }
+        case TOKEN_CLASS: {
+            advance();
+            EXPECT(TOKEN_IDENTIFIER);
+            Token id_tok = parser.prev;
+            ObjClass* cls =
+                create_class(create_string(id_tok.start, id_tok.len));
+            EXPECT(TOKEN_LEFT_CURLY);
+            EXPECT(TOKEN_RIGHT_CURLY);
+            EMIT_CONST(OBJ_VAL(cls));
             define_var(id_tok);
 
             break;

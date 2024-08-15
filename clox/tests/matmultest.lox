@@ -1,0 +1,49 @@
+fun randint(a,b) {
+    var n = random() * (b-a) + a;
+    n -= n % 1;
+    return n;
+}
+
+fun matmul(m1,m2) {
+    if(m1[0].len != m2.len) return nil;
+
+    var m3 = array[m1.len];
+    for (var i=0;i<m1.len;i+=1) {
+        m3[i] = array[m2[0].len];
+        for(var j=0;j<m2[0].len;j+=1){
+            var sum=0;
+            for(var k=0;k<m2.len;k+=1) {
+                sum += m1[i][k] * m2[k][j];
+            }
+            m3[i][j] = sum;
+        }
+    }
+    return m3;
+}
+
+fun randmtx(m,n) {
+    var mtx = array[m];
+    for(var i=0;i<m;i+=1) {
+        mtx[i] = array[n];
+        for(var j=0;j<n;j+=1) {
+            mtx[i][j] = random();
+        }
+    }
+    return mtx;
+}
+
+fun genmtxs() {
+    var m = randint(1,100);
+    var n = randint(1,100);
+    var p = randint(1,100);
+    return [randmtx(m,n),randmtx(n,p)];
+}
+
+var start = clock();
+
+for(var i=0;i<1000;i+=1) {
+    var mtxs = genmtxs();
+    matmul(mtxs[0],mtxs[1]);
+}
+
+println("Time: " + (clock() - start));

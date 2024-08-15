@@ -9,10 +9,13 @@
               BUILTIN_VAL(builtin_##name))
 
 DECL_BUILTIN(clock);
+DECL_BUILTIN(random);
+
 DECL_BUILTIN(print);
 DECL_BUILTIN(println);
 DECL_BUILTIN(scanln);
 DECL_BUILTIN(getc);
+DECL_BUILTIN(exit);
 
 DECL_BUILTIN(loadModule);
 

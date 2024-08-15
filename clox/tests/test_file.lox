@@ -338,6 +338,51 @@ var p2 = closurePoint(3,4);
 println("p2: "+cPointString(p2));
 println("p1+p2: "+cPointString(p1("add")(p2)));
 
+println("============= Test Classes =============");
+
+class A {}
+
+var a = A();
+a.a = A();
+a.a.a = 5;
+println(A);
+println(a);
+println(a.a);
+println(a.b = 2);
+println(a.a.a);
+
+println("--------- Test arrays ------------");
+
+fun matmul(m1,m2) {
+    if(m1[0].len != m2.len) return nil;
+
+    var m3 = array[m1.len];
+    for (var i=0;i<m1.len;i+=1) {
+        m3[i] = array[m2[0].len];
+        for(var j=0;j<m2[0].len;j+=1){
+            var sum=0;
+            for(var k=0;k<m2.len;k+=1) {
+                sum += m1[i][k] * m2[k][j];
+            }
+            m3[i][j] = sum;
+        }
+    }
+    return m3;
+}
+
+println(matmul([[1,2,3],[4,5,6]],[[1,2],[3,4],[5,6]]));
+
+fun map(f,a) {
+    var b = array[a.len];
+    for (var i=0;i<a.len;i+=1) {
+        b[i] = f(a[i]);
+    }
+    return b;
+}
+
+println(map(fun (a) -> 2 * a, [1,2,3,4,5]));
+
+
 
 /*
 

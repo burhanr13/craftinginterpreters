@@ -4,7 +4,7 @@ CC := gcc
 
 CFLAGS := -Wall -Werror -Wimplicit-fallthrough
 CFLAGS_RELEASE := -O3 -flto
-CFLAGS_DEBUG := -g
+CFLAGS_DEBUG := -g -DDEBUG_DISASM
 
 CPPFLAGS := -MP -MMD
 
